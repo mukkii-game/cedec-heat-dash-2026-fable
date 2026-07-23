@@ -272,6 +272,17 @@ export class Stage implements Scene {
       this.paused = !this.paused;
       audio.sfx('uiOk');
     }
+    // プレイ中でもRで即リトライ（「失敗してもすぐ再挑戦」を貫くため、
+    // ポーズ/死亡後だけでなくいつでも効くようにする）
+    if (
+      !this.paused &&
+      (this.state === 'play' || this.state === 'ready' || this.state === 'intro') &&
+      input.retryPressed
+    ) {
+      audio.sfx('uiOk');
+      this.reset();
+      return;
+    }
     if (input.mutePressed) this.ctx.toggleMute();
     // HUDのボタン（タップ）
     for (const tp of input.taps) {

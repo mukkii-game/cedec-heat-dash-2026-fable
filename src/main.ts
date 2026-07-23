@@ -65,6 +65,18 @@ async function boot(): Promise<void> {
     s.enter?.();
   }
 
+  // E2Eテスト用の読み取り専用デバッグフック（挙動には影響しない）
+  (window as unknown as { __debug: unknown }).__debug = {
+    get paused(): boolean | null {
+      const s = scene as unknown as { paused?: boolean };
+      return typeof s.paused === 'boolean' ? s.paused : null;
+    },
+    get timer(): number | null {
+      const s = scene as unknown as { timer?: number };
+      return typeof s.timer === 'number' ? s.timer : null;
+    },
+  };
+
   input.onFirstGesture = () => audio.unlock();
 
   const params = new URLSearchParams(location.search);

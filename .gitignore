@@ -1,0 +1,18 @@
+# dependencies / build
+node_modules/
+dist/
+
+# test artifacts
+test-results/
+playwright-report/
+blob-report/
+
+# 研究用参考画像（著作物のためリポジトリに含めない）
+reference/
+
+# local tool settings
+.claude/
+
+# misc
+.DS_Store
+*.local

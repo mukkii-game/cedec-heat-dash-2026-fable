@@ -66,7 +66,12 @@ async function boot(): Promise<void> {
 
   input.onFirstGesture = () => audio.unlock();
 
-  setScene(new TitleScene(ctx));
+  if (new URLSearchParams(location.search).has('sprites')) {
+    const { SpriteDebugScene } = await import('./game/debugScene');
+    setScene(new SpriteDebugScene(ctx));
+  } else {
+    setScene(new TitleScene(ctx));
+  }
 
   // 固定タイムステップ（60Hz）+ 可変描画
   let last = performance.now();

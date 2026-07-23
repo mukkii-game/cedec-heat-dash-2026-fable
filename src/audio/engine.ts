@@ -5,6 +5,7 @@ export type SfxName =
   | 'uiMove'
   | 'uiOk'
   | 'jump'
+  | 'dash'
   | 'land'
   | 'damage'
   | 'shade'
@@ -46,24 +47,31 @@ export class AudioSys {
       this.ctx = new AC();
       const c = this.ctx;
       this.master = c.createGain();
+      // 高域を丸めて耳当たりを柔らかく
+      const softener = c.createBiquadFilter();
+      softener.type = 'lowpass';
+      softener.frequency.value = 7200;
+      softener.Q.value = 0.5;
       const comp = c.createDynamicsCompressor();
-      comp.threshold.value = -14;
-      comp.ratio.value = 6;
-      this.master.connect(comp);
+      comp.threshold.value = -16;
+      comp.knee.value = 18;
+      comp.ratio.value = 5;
+      this.master.connect(softener);
+      softener.connect(comp);
       comp.connect(c.destination);
       this.musicGain = c.createGain();
-      this.musicGain.gain.value = 0.5;
+      this.musicGain.gain.value = 0.42;
       this.musicGain.connect(this.master);
       this.sfxGain = c.createGain();
-      this.sfxGain.gain.value = 0.62;
+      this.sfxGain.gain.value = 0.48;
       this.sfxGain.connect(this.master);
       // リード用エコー
       this.delay = c.createDelay(0.5);
       this.delay.delayTime.value = 0.23;
       const fb = c.createGain();
-      fb.gain.value = 0.32;
+      fb.gain.value = 0.26;
       const wet = c.createGain();
-      wet.gain.value = 0.35;
+      wet.gain.value = 0.22;
       this.delay.connect(fb);
       fb.connect(this.delay);
       this.delay.connect(wet);
@@ -79,7 +87,7 @@ export class AudioSys {
   }
   private applyMute(): void {
     if (this.master && this.ctx) {
-      this.master.gain.setTargetAtTime(this.muted ? 0 : 0.9, this.ctx.currentTime, 0.02);
+      this.master.gain.setTargetAtTime(this.muted ? 0 : 0.78, this.ctx.currentTime, 0.02);
     }
   }
 
@@ -162,100 +170,105 @@ export class AudioSys {
     if (!this.ctx) return;
     switch (name) {
       case 'uiMove':
-        this.tone({ f0: 660, t: 0.05, vol: 0.15 });
+        this.tone({ f0: 660, t: 0.05, vol: 0.09, type: 'triangle' });
         break;
       case 'uiOk':
-        this.tone({ f0: 660, t: 0.06, vol: 0.2 });
-        this.tone({ f0: 990, t: 0.09, vol: 0.2, when: 0.05 });
+        this.tone({ f0: 660, t: 0.06, vol: 0.12, type: 'triangle' });
+        this.tone({ f0: 990, t: 0.09, vol: 0.12, type: 'triangle', when: 0.05 });
         break;
       case 'jump':
-        this.tone({ f0: 320, f1: 760, t: 0.14, vol: 0.22, type: 'square' });
+        this.tone({ f0: 340, f1: 700, t: 0.13, vol: 0.14, type: 'triangle' });
+        break;
+      case 'dash':
+        this.noise({ t: 0.18, vol: 0.07, hp: 900, lp: 3600 });
+        this.tone({ f0: 220, f1: 480, t: 0.16, vol: 0.09, type: 'sine' });
         break;
       case 'land':
-        this.noise({ t: 0.05, vol: 0.12, lp: 900 });
+        this.noise({ t: 0.04, vol: 0.07, lp: 800 });
         break;
       case 'damage':
-        this.noise({ t: 0.12, vol: 0.3, lp: 2400 });
-        this.tone({ f0: 300, f1: 90, t: 0.2, vol: 0.3, type: 'sawtooth' });
+        this.noise({ t: 0.1, vol: 0.18, lp: 1500 });
+        this.tone({ f0: 240, f1: 90, t: 0.18, vol: 0.18, type: 'triangle' });
         break;
       case 'shade':
-        this.tone({ f0: 880, f1: 440, t: 0.16, vol: 0.12, type: 'sine' });
-        this.tone({ f0: 1320, f1: 660, t: 0.16, vol: 0.08, type: 'sine', when: 0.03 });
+        this.tone({ f0: 880, f1: 440, t: 0.16, vol: 0.1, type: 'sine' });
+        this.tone({ f0: 1320, f1: 660, t: 0.16, vol: 0.06, type: 'sine', when: 0.03 });
         break;
       case 'mist':
-        this.noise({ t: 0.3, vol: 0.1, hp: 4000 });
-        this.tone({ f0: 1560, f1: 2200, t: 0.2, vol: 0.08, type: 'sine' });
+        this.noise({ t: 0.3, vol: 0.06, hp: 3600, lp: 6800 });
+        this.tone({ f0: 1560, f1: 2100, t: 0.2, vol: 0.05, type: 'sine' });
         break;
       case 'drink':
-        this.tone({ f0: 523, t: 0.05, vol: 0.2 });
-        this.tone({ f0: 659, t: 0.05, vol: 0.2, when: 0.05 });
-        this.tone({ f0: 784, t: 0.09, vol: 0.2, when: 0.1 });
+        this.tone({ f0: 523, t: 0.05, vol: 0.12, type: 'triangle' });
+        this.tone({ f0: 659, t: 0.05, vol: 0.12, type: 'triangle', when: 0.05 });
+        this.tone({ f0: 784, t: 0.09, vol: 0.12, type: 'triangle', when: 0.1 });
         break;
       case 'energy':
-        this.tone({ f0: 523, t: 0.04, vol: 0.2 });
-        this.tone({ f0: 784, t: 0.04, vol: 0.2, when: 0.04 });
-        this.tone({ f0: 1046, t: 0.04, vol: 0.2, when: 0.08 });
-        this.tone({ f0: 1568, t: 0.12, vol: 0.2, when: 0.12 });
+        this.tone({ f0: 523, t: 0.04, vol: 0.12, type: 'triangle' });
+        this.tone({ f0: 784, t: 0.04, vol: 0.12, type: 'triangle', when: 0.04 });
+        this.tone({ f0: 1046, t: 0.04, vol: 0.12, type: 'triangle', when: 0.08 });
+        this.tone({ f0: 1568, t: 0.12, vol: 0.11, type: 'triangle', when: 0.12 });
         break;
       case 'store':
         // 入店チャイム
-        this.tone({ f0: 784, t: 0.12, vol: 0.18, type: 'sine' });
-        this.tone({ f0: 587, t: 0.18, vol: 0.18, type: 'sine', when: 0.13 });
-        this.noise({ t: 0.5, vol: 0.06, hp: 5000, when: 0.2 }); // 冷気
+        this.tone({ f0: 784, t: 0.12, vol: 0.12, type: 'sine' });
+        this.tone({ f0: 587, t: 0.18, vol: 0.12, type: 'sine', when: 0.13 });
+        this.noise({ t: 0.5, vol: 0.035, hp: 4200, lp: 7000, when: 0.2 }); // 冷気
         break;
       case 'laserWarn':
-        this.tone({ f0: 1200, t: 0.07, vol: 0.2, type: 'square' });
-        this.tone({ f0: 1200, t: 0.07, vol: 0.2, type: 'square', when: 0.12 });
+        this.tone({ f0: 830, t: 0.08, vol: 0.12, type: 'triangle' });
+        this.tone({ f0: 830, t: 0.08, vol: 0.12, type: 'triangle', when: 0.14 });
         break;
       case 'laserFire':
-        this.noise({ t: 0.5, vol: 0.28, hp: 1000 });
-        this.tone({ f0: 2400, f1: 220, t: 0.5, vol: 0.24, type: 'sawtooth' });
+        this.noise({ t: 0.45, vol: 0.14, hp: 500, lp: 4200 });
+        this.tone({ f0: 1600, f1: 200, t: 0.45, vol: 0.11, type: 'triangle' });
+        this.tone({ f0: 130, f1: 55, t: 0.4, vol: 0.16, type: 'sine' });
         break;
       case 'gull':
-        this.tone({ f0: 1180, f1: 880, t: 0.1, vol: 0.14, type: 'triangle' });
-        this.tone({ f0: 1320, f1: 990, t: 0.12, vol: 0.12, type: 'triangle', when: 0.12 });
+        this.tone({ f0: 1180, f1: 880, t: 0.1, vol: 0.08, type: 'triangle' });
+        this.tone({ f0: 1320, f1: 990, t: 0.12, vol: 0.07, type: 'triangle', when: 0.12 });
         break;
       case 'quip':
-        this.tone({ f0: 880, t: 0.03, vol: 0.1 });
+        this.tone({ f0: 880, t: 0.03, vol: 0.05, type: 'triangle' });
         break;
       case 'card':
-        this.tone({ f0: 440, t: 0.06, vol: 0.16 });
-        this.tone({ f0: 554, t: 0.1, vol: 0.16, when: 0.07 });
+        this.tone({ f0: 440, t: 0.06, vol: 0.1, type: 'triangle' });
+        this.tone({ f0: 554, t: 0.1, vol: 0.1, type: 'triangle', when: 0.07 });
         break;
       case 'lowHp': {
         const now = this.ctx.currentTime;
-        if (now - this.lowHpAt > 0.9) {
+        if (now - this.lowHpAt > 1.1) {
           this.lowHpAt = now;
-          this.tone({ f0: 392, t: 0.08, vol: 0.14, type: 'triangle' });
-          this.tone({ f0: 330, t: 0.1, vol: 0.14, type: 'triangle', when: 0.1 });
+          this.tone({ f0: 392, t: 0.08, vol: 0.08, type: 'triangle' });
+          this.tone({ f0: 330, t: 0.1, vol: 0.08, type: 'triangle', when: 0.1 });
         }
         break;
       }
       case 'timeWarn':
-        this.tone({ f0: 988, t: 0.08, vol: 0.16 });
+        this.tone({ f0: 740, t: 0.07, vol: 0.09, type: 'triangle' });
         break;
       case 'countBeep':
-        this.tone({ f0: 440, t: 0.1, vol: 0.22 });
+        this.tone({ f0: 440, t: 0.1, vol: 0.13, type: 'triangle' });
         break;
       case 'go':
-        this.tone({ f0: 880, t: 0.3, vol: 0.26 });
+        this.tone({ f0: 880, t: 0.28, vol: 0.16, type: 'triangle' });
         break;
       case 'goal':
         for (let i = 0; i < 4; i++) {
-          this.tone({ f0: [523, 659, 784, 1046][i], t: 0.16, vol: 0.2, when: i * 0.09 });
+          this.tone({ f0: [523, 659, 784, 1046][i], t: 0.16, vol: 0.13, type: 'triangle', when: i * 0.09 });
         }
         break;
       case 'rank':
-        this.noise({ t: 0.14, vol: 0.3, lp: 1200 });
-        this.tone({ f0: 130, f1: 65, t: 0.18, vol: 0.3, type: 'sine' });
+        this.noise({ t: 0.12, vol: 0.16, lp: 1000 });
+        this.tone({ f0: 120, f1: 60, t: 0.16, vol: 0.18, type: 'sine' });
         break;
       case 'record':
         for (let i = 0; i < 6; i++) {
-          this.tone({ f0: 784 * Math.pow(2, i / 12), t: 0.07, vol: 0.14, when: i * 0.05, type: 'triangle' });
+          this.tone({ f0: 784 * Math.pow(2, i / 12), t: 0.07, vol: 0.09, when: i * 0.05, type: 'triangle' });
         }
         break;
       case 'collapse':
-        this.tone({ f0: 440, f1: 110, t: 0.7, vol: 0.22, type: 'triangle' });
+        this.tone({ f0: 440, f1: 110, t: 0.7, vol: 0.15, type: 'triangle' });
         break;
     }
   }

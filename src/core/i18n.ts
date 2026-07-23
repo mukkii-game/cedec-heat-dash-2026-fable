@@ -108,10 +108,11 @@ const STR: Record<string, [string, string]> = {
   'pause.title2': ['タイトルへ', 'QUIT TO TITLE'],
 
   // 操作ヒント
-  'hint.moveKey': ['↑↓ うごく', '↑↓ MOVE'],
+  'hint.moveKey': ['↑↓ 移動  ←→ 減速/ダッシュ', '↑↓ MOVE  ←→ SLOW/DASH'],
   'hint.jumpKey': ['SPACE ジャンプ', 'SPACE JUMP'],
-  'hint.moveTouch': ['左がわドラッグ：うごく', 'DRAG LEFT SIDE: MOVE'],
-  'hint.jumpTouch': ['右がわタップ：ジャンプ', 'TAP RIGHT SIDE: JUMP'],
+  'hint.moveTouch': ['左ドラッグ：移動＋加減速', 'DRAG LEFT: MOVE + SPEED'],
+  'hint.jumpTouch': ['右タップ：ジャンプ', 'TAP RIGHT: JUMP'],
+  'hint.dash': ['ダッシュは速いが、あつい！', 'Dashing is fast... and HOT!'],
 };
 
 export class I18n {

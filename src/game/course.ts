@@ -86,7 +86,7 @@ export const DAY1: Course = {
   day: 1,
   length: 290,
   limit: 60,
-  par: { s: 33, a: 38, b: 45 },
+  par: { s: 28, a: 33, b: 42 },
   zones: [
     // S0: 最初の日陰（奥側）— 「日陰=青くて気持ちいい」を学ぶ
     { kind: 'shade', x0: 22, x1: 42, z0: 0, z1: 0.5, shear: -6 },
@@ -109,17 +109,19 @@ export const DAY1: Course = {
     { type: 'ped', x: 86, z: 0.28, v: 0.5, variant: 1 },
     { type: 'planter', x: 76, z: 0.65 },
     { type: 'drink', x: 94, z: 0.85 },
-    // S2: 人の波
-    { type: 'ped', x: 120, z: 0.55, v: -0.8, variant: 2 },
+    // S2: 人の波（上下にゆっくり巡回=読んで抜ける）
+    { type: 'ped', x: 120, z: 0.55, v: -0.8, variant: 2, zAmp: 0.18 },
     { type: 'ped', x: 128, z: 0.78, v: 0.4, variant: 3 },
-    { type: 'ped', x: 137, z: 0.32, v: -0.5, variant: 1, zAmp: 0.08 },
-    { type: 'ped', x: 146, z: 0.62, v: 0.6, variant: 0 },
+    { type: 'ped', x: 137, z: 0.32, v: -0.5, variant: 1, zAmp: 0.22 },
+    { type: 'ped', x: 146, z: 0.62, v: 0.6, variant: 0, zAmp: 0.14 },
     { type: 'ped', x: 153, z: 0.14, v: -0.4, variant: 2 },
-    { type: 'gull', x: 162, z: 0.55 },
+    { type: 'cart', x: 160, z: 0.5, v: 1.1 },
+    { type: 'gull', x: 166, z: 0.55 },
     { type: 'drink', x: 141, z: 0.92 },
     { type: 'coolbox', x: 133, z: 0.05 },
     // S3: レーザー区間（回避手段は影/減速/奥）
     { type: 'ped', x: 197, z: 0.8, v: 0.3, variant: 3 },
+    { type: 'ped', x: 210, z: 0.6, v: -0.6, variant: 1, zAmp: 0.16 },
     // S4: 分岐 — 日向(奥)は障害物2つ、日陰(手前)は遅いがクリーン
     { type: 'cardman', x: 236, z: 0.48 },
     { type: 'planter', x: 252, z: 0.2 },

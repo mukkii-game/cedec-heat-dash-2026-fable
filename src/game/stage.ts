@@ -20,8 +20,9 @@ import { calcRank, type Ctx, type Scene } from './ctx';
 
 // ---- 調整値（GAME_DESIGN.md §3） ----
 const V_MIN = 4.5;
-const ACCEL = 4.5;
-const DECEL = 7.5;
+const ACCEL = 5.0;
+const DECEL = 8.0;
+const BRAKE_DECEL = 11.0;
 const Z_SPEED = 1.5;
 const JUMP_T = 0.55;
 const JUMP_H = 17; // px
@@ -30,13 +31,19 @@ const INVULN_T = 1.2;
 const MAX_SUN = 10.0;
 const MAX_SHADE = 8.4;
 const MAX_GLARE = 10.8;
+const DASH_MULT = 1.4; // ダッシュ時の上限倍率
+const BRAKE_V = 3.8;
 const SAND_MULT = 0.6;
-const HP_SUN = -2.2;
-const HP_SHADE = 1.5;
-const HP_GLARE = -5.5;
-const HP_MIST = 8.0;
+// ヒート（0=快適 100=熱中症）。日向で上がり日陰で下がる
+const HEAT_SUN = 2.2;
+const HEAT_SHADE = -3.0;
+const HEAT_GLARE = 5.5;
+const HEAT_MIST = -12.0;
+const HEAT_DASH_SUN = 3.2; // ダッシュ中の追加ヒート
+const HEAT_DASH_SHADE = 2.4;
+const BRAKE_HEAT_MULT = 0.55; // ブレーキ中は日向の蓄熱を抑える
 const STORE_TIME = 1.4;
-const STORE_HEAL = 45;
+const STORE_COOL = 55;
 const CARD_TIME = 0.7;
 /** 表示用スプライト倍率（画面上の存在感。当たり判定はメートル系で不変） */
 const SPR = 1.45;
@@ -92,7 +99,10 @@ export class Stage implements Scene {
   private px = 0;
   private pz = 0.6;
   private v = V_MIN;
-  private hp = 100;
+  /** ヒートゲージ 0(快適)〜100(熱中症) */
+  private heat = 0;
+  private dashing = false;
+  private braking = false;
   private airT = -1; // -1=接地
   private stumbleT = 0;
   private invulnT = 0;
@@ -145,7 +155,9 @@ export class Stage implements Scene {
     this.px = 0;
     this.pz = 0.6;
     this.v = V_MIN;
-    this.hp = 100;
+    this.heat = 0;
+    this.dashing = false;
+    this.braking = false;
     this.airT = -1;
     this.stumbleT = 0;
     this.invulnT = 0;
@@ -195,9 +207,9 @@ export class Stage implements Scene {
     }
     let maxV = shaded ? MAX_SHADE : glare ? MAX_GLARE : MAX_SUN;
     if (sand && this.airT < 0) maxV *= SAND_MULT;
-    let hpRate = shaded ? HP_SHADE : glare ? HP_GLARE : HP_SUN;
-    if (mist) hpRate = HP_MIST;
-    return { maxV, hpRate, shaded, sand, glare, mist };
+    let heatRate = shaded ? HEAT_SHADE : glare ? HEAT_GLARE : HEAT_SUN;
+    if (mist) heatRate = HEAT_MIST;
+    return { maxV, heatRate, shaded, sand, glare, mist };
   }
 
   private quip(str: string): void {
@@ -209,7 +221,7 @@ export class Stage implements Scene {
 
   private damage(amount: number, opts: { trip?: boolean } = {}): void {
     if (this.invulnT > 0) return;
-    this.hp = Math.max(0, this.hp - amount);
+    this.heat = Math.min(100, this.heat + amount);
     this.v = Math.max(V_MIN * 0.7, this.v * (opts.trip ? 0.5 : 0.35));
     this.stumbleT = STUMBLE_T;
     this.invulnT = INVULN_T;
@@ -219,7 +231,7 @@ export class Stage implements Scene {
     for (let i = 0; i < 8; i++) {
       this.spawnP(PSX, zToY(this.pz) - 14, (Math.random() - 0.5) * 60, -Math.random() * 50, 0.4, '#ffd94d', 2, 120);
     }
-    if (this.hp <= 0) {
+    if (this.heat >= 100) {
       this.state = 'dead';
       this.stateT = 0;
       this.ctx.music.stop();
@@ -396,7 +408,7 @@ export class Stage implements Scene {
         this.spawnP(PSX + (Math.random() - 0.5) * 30, zToY(this.pz) - 20 - Math.random() * 10, -10, 8, 0.5, '#bfe8ff', 1, 0);
       }
       if (this.storeT <= 0) {
-        this.hp = Math.min(100, this.hp + STORE_HEAL);
+        this.heat = Math.max(0, this.heat - STORE_COOL);
         this.v = V_MIN;
         this.invulnT = 0.5;
       }
@@ -416,29 +428,44 @@ export class Stage implements Scene {
     // 入力（?auto=1 でオートパイロット。クリア可能性検証とデモに使用）
     const ai = this.autoPilot ? this.autoInput() : null;
     const moveY = ai ? ai.my : input.moveY;
+    const moveX = ai ? ai.ax : input.moveX;
     const jumpIn = ai ? ai.jump : input.jumpPressed;
 
     // 奥行き移動
     const zRate = this.airT >= 0 ? 0.3 : this.stumbleT > 0 ? 0.5 : 1;
     this.pz = Math.min(0.97, Math.max(0.03, this.pz + moveY * Z_SPEED * zRate * dt));
 
-    // 環境と速度
+    // 環境と速度（ダッシュ=速いが熱い / ブレーキ=遅いが涼しく安全）
     const env = this.env(this.px, this.pz);
-    if (this.v < env.maxV) this.v = Math.min(env.maxV, this.v + ACCEL * dt);
-    else this.v = Math.max(env.maxV, this.v - DECEL * dt);
+    const wasDashing = this.dashing;
+    this.dashing = moveX > 0.35 && this.stumbleT <= 0;
+    this.braking = moveX < -0.35;
+    let targetV = env.maxV;
+    let dashHeat = 0;
+    if (this.dashing) {
+      targetV = env.maxV * DASH_MULT;
+      dashHeat = env.shaded ? HEAT_DASH_SHADE : HEAT_DASH_SUN;
+      if (!wasDashing) audio.sfx('dash');
+    } else if (this.braking) {
+      targetV = Math.min(targetV, BRAKE_V);
+    }
+    if (this.v < targetV) this.v = Math.min(targetV, this.v + (this.dashing ? ACCEL * 1.5 : ACCEL) * dt);
+    else this.v = Math.max(targetV, this.v - (this.braking ? BRAKE_DECEL : DECEL) * dt);
     if (this.stumbleT > 0) this.v = Math.min(this.v, env.maxV * 0.75);
     this.px += this.v * dt;
 
-    // HP収支
-    this.hp = Math.min(100, Math.max(0, this.hp + env.hpRate * dt));
-    if (this.hp <= 0) {
+    // ヒート収支
+    let heatRate = env.heatRate + dashHeat;
+    if (this.braking && heatRate > 0) heatRate *= BRAKE_HEAT_MULT;
+    this.heat = Math.min(100, Math.max(0, this.heat + heatRate * dt));
+    if (this.heat >= 100) {
       this.state = 'dead';
       this.stateT = 0;
       music.stop();
       audio.sfx('collapse');
       return;
     }
-    if (this.hp < 25) {
+    if (this.heat > 75) {
       audio.sfx('lowHp');
       if (!this.firstLowHp) {
         this.firstLowHp = true;
@@ -464,11 +491,11 @@ export class Stage implements Scene {
     this.wasShaded = env.shaded;
     this.wasMist = env.mist;
 
-    // 汗・土埃
-    if (!env.shaded && Math.random() < dt * 3) {
+    // 汗・土埃（ヒートが高いほど汗が増える）
+    if (!env.shaded && Math.random() < dt * (1.5 + this.heat * 0.06)) {
       this.spawnP(PSX + 6, zToY(this.pz) - 26, 14, -26, 0.4, '#bfe8ff', 1, 90);
     }
-    if (this.airT < 0 && this.v > 6 && Math.random() < dt * 14) {
+    if (this.airT < 0 && this.v > 6 && Math.random() < dt * (this.dashing ? 26 : 14)) {
       this.spawnP(PSX - 8, zToY(this.pz) - 1, -30 - Math.random() * 30, -12 - Math.random() * 18, 0.3, env.sand ? '#d9a45c' : '#cbb694', 1, 160);
     }
 
@@ -555,11 +582,12 @@ export class Stage implements Scene {
     void dt;
   }
 
-  /** 簡易オートパイロット: 影を好み、障害物を避け/跳び、レーザー帯から逃げ、HPが低いとコンビニへ */
-  private autoInput(): { my: number; jump: boolean } {
+  /** 簡易オートパイロット: 影を好み、障害物を避け/跳び、レーザー帯から逃げ、熱が高いとコンビニへ */
+  private autoInput(): { my: number; ax: number; jump: boolean } {
     let targetZ = 0.55;
     let jump = false;
-    if (this.hp < 72) {
+    let dangerAhead = false;
+    if (this.heat > 30) {
       for (const zn of this.course.zones) {
         if (zn.kind !== 'shade') continue;
         if (zn.x1 < this.px + 2 || zn.x0 > this.px + 30) continue;
@@ -567,16 +595,18 @@ export class Stage implements Scene {
         break;
       }
     }
-    if (this.hp < 42) {
+    if (this.heat > 58) {
       for (const sx of this.course.stores) {
         if (!this.storeUsed.has(sx) && sx > this.px - 1 && sx < this.px + 26) targetZ = 0.08;
       }
     }
+    let laserEngaged = false;
     for (let i = 0; i < this.lasers.length; i++) {
       const rt = this.lasers[i];
       if (rt.state !== 'warn' && rt.state !== 'fire') continue;
       const def = this.course.lasers[i];
-      if (this.px > def.x - def.halfW - 12 && this.px < def.x + def.halfW + 2) {
+      if (this.px > def.x - def.halfW - 14 && this.px < def.x + def.halfW + 2) {
+        laserEngaged = true;
         const env = this.env(this.px, this.pz);
         const inBand = this.pz > def.z0 - 0.05 && this.pz < def.z1 + 0.05;
         if (inBand && !env.shaded) {
@@ -593,6 +623,7 @@ export class Stage implements Scene {
       const dx = o.curX - this.px;
       if (dx < 0.5 || dx > 10) continue;
       if (Math.abs(o.curZ - this.pz) > 0.16) continue;
+      dangerAhead = true;
       const jumpable =
         o.type === 'cone' || o.type === 'planter' || o.type === 'coolbox' || o.type === 'tumbleweed' || o.type === 'dune';
       if (jumpable && dx < this.v * 0.32 && this.airT < 0) {
@@ -601,8 +632,10 @@ export class Stage implements Scene {
         targetZ = o.curZ > this.pz ? Math.max(0.05, o.curZ - 0.28) : Math.min(0.95, o.curZ + 0.28);
       }
     }
+    // ダッシュ判断: 熱に余裕があり進路が安全なとき
+    const ax = !laserEngaged && !dangerAhead && this.heat < 52 ? 1 : 0;
     const dzT = targetZ - this.pz;
-    return { my: Math.abs(dzT) < 0.03 ? 0 : Math.sign(dzT), jump };
+    return { my: Math.abs(dzT) < 0.03 ? 0 : Math.sign(dzT), ax, jump };
   }
 
   private updateObs(dt: number): void {
@@ -722,7 +755,7 @@ export class Stage implements Scene {
         case 'drink':
           if (Math.abs(dx) < 0.9 && dz < 0.14) {
             o.taken = true;
-            this.hp = Math.min(100, this.hp + 12);
+            this.heat = Math.max(0, this.heat - 16);
             this.ctx.audio.sfx('drink');
             this.quip(this.ctx.i18n.t('q.drink'));
           }
@@ -730,8 +763,8 @@ export class Stage implements Scene {
         case 'energy':
           if (Math.abs(dx) < 0.9 && dz < 0.14) {
             o.taken = true;
-            this.hp = Math.min(100, this.hp + 8);
-            this.v = Math.min(12, this.v + 2);
+            this.heat = Math.max(0, this.heat - 12);
+            this.v = Math.min(15, this.v + 2.5);
             this.ctx.audio.sfx('energy');
             this.quip(this.ctx.i18n.t('q.energy'));
           }
@@ -829,7 +862,7 @@ export class Stage implements Scene {
     g.globalAlpha = 1;
 
     // スピードライン
-    if (this.v > 9.4 && this.state === 'play') {
+    if ((this.dashing && this.v > 8.5) || this.v > 11) {
       g.globalAlpha = 0.25;
       g.fillStyle = '#ffffff';
       for (let i = 0; i < 5; i++) {
@@ -1074,6 +1107,16 @@ export class Stage implements Scene {
           });
           break;
         }
+        case 'cart': {
+          items.push({
+            z: o.curZ,
+            fn: () => {
+              this.drawShadow(g, sx, sy, 11 * sc * SPR);
+              blit(g, S.cart, sx, sy, sc * SPR);
+            },
+          });
+          break;
+        }
         case 'cardman': {
           items.push({
             z: o.curZ,
@@ -1164,8 +1207,8 @@ export class Stage implements Scene {
     }
     blit(g, spr, PSX, sy - jy, sc * SPR);
 
-    // 高速オーラ
-    if (this.v > 9.3 && this.state === 'play' && this.airT < 0) {
+    // 高速オーラ（ダッシュ中の残像）
+    if (this.dashing && this.v > 8 && this.state === 'play' && this.airT < 0) {
       g.globalAlpha = 0.22;
       blit(g, spr, PSX - 8, sy - jy, sc * SPR);
       g.globalAlpha = 0.1;
@@ -1218,17 +1261,20 @@ export class Stage implements Scene {
     bitmapText(g, 'LIMIT', 140, rowY, { color: '#8f86b8' });
     bitmapText(g, `${Math.ceil(remain)}`, 174, rowY, { color: limCol });
 
-    // HEAT（体力）
+    // HEATゲージ（0=快適 → 100=熱中症。上がるほど危険）
     bitmapText(g, 'HEAT', 205, rowY, { color: '#8f86b8' });
     const gx = 233;
     const gw = 62;
     g.fillStyle = '#221833';
     g.fillRect(gx - 1, rowY - 1, gw + 2, 9);
-    const frac = this.hp / 100;
+    // 涼しい下地
+    g.fillStyle = '#1e3448';
+    g.fillRect(gx, rowY, gw, 7);
+    const frac = this.heat / 100;
     const barW = Math.round(gw * frac);
-    let col = '#4ad84a';
-    if (this.hp < 50) col = '#ffd94d';
-    if (this.hp < 25) col = Math.floor(this.time * 6) % 2 === 0 ? '#ff5a32' : '#e8504b';
+    let col = '#f2a33c';
+    if (this.heat < 45) col = '#e8c832';
+    if (this.heat >= 75) col = Math.floor(this.time * 6) % 2 === 0 ? '#ff5a32' : '#e8504b';
     g.fillStyle = col;
     g.fillRect(gx, rowY, barW, 7);
     g.fillStyle = 'rgba(255,255,255,0.35)';
@@ -1237,6 +1283,9 @@ export class Stage implements Scene {
       g.fillStyle = '#14101f';
       g.fillRect(gx + Math.round((gw * i) / 4), rowY, 1, 7);
     }
+    // 危険域マーカー
+    g.fillStyle = '#ff5a32';
+    g.fillRect(gx + Math.round(gw * 0.75), rowY - 1, 1, 2);
 
     // AREA進行バー
     bitmapText(g, 'AREA', 305, rowY, { color: '#8f86b8' });
@@ -1302,12 +1351,17 @@ export class Stage implements Scene {
         text(g, i18n.t('hint.moveTouch'), 8, 40, { size: 10, color: '#f5f1e8', outline: '#221833' });
         text(g, i18n.t('hint.jumpTouch'), VW - 8 - 150, 40, { size: 10, color: '#f5f1e8', outline: '#221833' });
       } else {
-        text(g, `${i18n.t('hint.moveKey')}  /  ${i18n.t('hint.jumpKey')}`, VW / 2 - 80, 36, {
+        text(g, `${i18n.t('hint.moveKey')}  /  ${i18n.t('hint.jumpKey')}`, VW / 2 - 110, 36, {
           size: 10,
           color: '#f5f1e8',
           outline: '#221833',
         });
       }
+      g.globalAlpha = 1;
+    } else if (this.state === 'play' && this.day === 1 && this.timer > 6.5 && this.timer < 9.5) {
+      // ダッシュ教示（初日のみ）
+      g.globalAlpha = Math.min(0.9, (9.5 - this.timer) / 1.5, (this.timer - 6.5) / 0.5);
+      text(g, i18n.t('hint.dash'), VW / 2, 36, { size: 10, color: '#ffd94d', align: 'center', outline: '#221833' });
       g.globalAlpha = 1;
     } else if (this.state === 'dead' || this.state === 'timeup') {
       if (this.stateT > 0.8) {

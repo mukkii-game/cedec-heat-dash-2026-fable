@@ -1,6 +1,6 @@
 // キーボード＋ポインタ統合入力。
-// 横画面: 左半分ドラッグ=奥行き移動 / 右半分タップ=ジャンプ
-// 縦画面: 下部デッキの上下パッド＋JUMPボタン（描画もここが担当）
+// 横画面: 左半分ドラッグ=移動(縦)＋加減速(横) / 右半分タップ=ジャンプ
+// 縦画面: 下部デッキの上下パッド＋SLOW/DASH＋JUMPボタン（描画もここが担当）
 
 import type { Video, Rect } from './video';
 
@@ -8,7 +8,7 @@ const DRAG_RANGE = 40; // CSSpx: 仮想スティックの飽和距離
 
 interface PointerState {
   id: number;
-  role: 'move' | 'jump' | 'padUp' | 'padDown';
+  role: 'move' | 'jump' | 'padUp' | 'padDown' | 'padAcc' | 'padBrk';
   startX: number;
   startY: number;
   curX: number;
@@ -18,6 +18,8 @@ interface PointerState {
 export class Input {
   /** -1(奥)〜+1(手前) */
   moveY = 0;
+  /** -1(ブレーキ)〜+1(ダッシュ) */
+  moveX = 0;
   private jumpQ = false;
   private confirmQ = false;
   private pauseQ = false;
@@ -38,6 +40,8 @@ export class Input {
   // 縦画面デッキのボタン矩形（キャンバス物理座標）
   padUp: Rect = { x: 0, y: 0, w: 0, h: 0 };
   padDown: Rect = { x: 0, y: 0, w: 0, h: 0 };
+  padAcc: Rect = { x: 0, y: 0, w: 0, h: 0 };
+  padBrk: Rect = { x: 0, y: 0, w: 0, h: 0 };
   padJump: Rect = { x: 0, y: 0, w: 0, h: 0 };
 
   constructor(video: Video) {
@@ -102,21 +106,24 @@ export class Input {
   private layoutDeck(): void {
     const d = this.video.deckRect;
     if (d.h <= 0) return;
-    const m = Math.floor(d.w * 0.045);
-    const padW = Math.floor(d.w * 0.42);
-    const topY = d.y + Math.floor(d.h * 0.1);
-    const usableH = Math.floor(d.h * 0.82);
+    const m = Math.floor(d.w * 0.035);
+    const topY = d.y + Math.floor(d.h * 0.08);
+    const usableH = Math.floor(d.h * 0.84);
+    // 左: 上下パッド
+    const moveW = Math.floor(d.w * 0.3);
     const padH = Math.floor(usableH * 0.47);
-    this.padUp = { x: d.x + m, y: topY, w: padW, h: padH };
-    this.padDown = { x: d.x + m, y: topY + usableH - padH, w: padW, h: padH };
-    const jw = Math.floor(d.w * 0.42);
-    const jh = Math.floor(usableH * 0.62);
-    this.padJump = {
-      x: d.x + d.w - m - jw,
-      y: topY + Math.floor((usableH - jh) / 2),
-      w: jw,
-      h: jh,
-    };
+    this.padUp = { x: d.x + m, y: topY, w: moveW, h: padH };
+    this.padDown = { x: d.x + m, y: topY + usableH - padH, w: moveW, h: padH };
+    // 中: DASH / SLOW
+    const spdW = Math.floor(d.w * 0.26);
+    const spdX = d.x + m + moveW + m;
+    this.padAcc = { x: spdX, y: topY, w: spdW, h: padH };
+    this.padBrk = { x: spdX, y: topY + usableH - padH, w: spdW, h: padH };
+    // 右: JUMP
+    const jx = spdX + spdW + m;
+    const jw = d.x + d.w - m - jx;
+    const jh = Math.floor(usableH * 0.7);
+    this.padJump = { x: jx, y: topY + Math.floor((usableH - jh) / 2), w: jw, h: jh };
   }
 
   private hit(r: Rect, x: number, y: number): boolean {
@@ -142,6 +149,10 @@ export class Input {
       role = 'padUp';
     } else if (this.video.mode === 'portrait' && this.hit(this.padDown, cc.x, cc.y)) {
       role = 'padDown';
+    } else if (this.video.mode === 'portrait' && this.hit(this.padAcc, cc.x, cc.y)) {
+      role = 'padAcc';
+    } else if (this.video.mode === 'portrait' && this.hit(this.padBrk, cc.x, cc.y)) {
+      role = 'padBrk';
     } else if (e.clientX < window.innerWidth * 0.45) {
       role = 'move';
     } else {
@@ -169,20 +180,27 @@ export class Input {
     this.pointers.delete(e.pointerId);
   }
 
-  /** 毎フレーム呼ぶ。moveYを確定する */
+  /** 毎フレーム呼ぶ。moveX/moveYを確定する */
   update(): void {
     let my = 0;
+    let mx = 0;
     if (this.keys.has('ArrowUp') || this.keys.has('KeyW')) my -= 1;
     if (this.keys.has('ArrowDown') || this.keys.has('KeyS')) my += 1;
+    if (this.keys.has('ArrowRight') || this.keys.has('KeyD')) mx += 1;
+    if (this.keys.has('ArrowLeft') || this.keys.has('KeyA')) mx -= 1;
     for (const p of this.pointers.values()) {
       if (p.role === 'move') {
-        const d = (p.curY - p.startY) / DRAG_RANGE;
-        const dz = Math.abs(d) < 0.12 ? 0 : Math.max(-1, Math.min(1, d));
-        my += dz;
+        const dy = (p.curY - p.startY) / DRAG_RANGE;
+        const dx = (p.curX - p.startX) / DRAG_RANGE;
+        if (Math.abs(dy) >= 0.12) my += Math.max(-1, Math.min(1, dy));
+        if (Math.abs(dx) >= 0.18) mx += Math.max(-1, Math.min(1, dx));
       } else if (p.role === 'padUp') my -= 1;
       else if (p.role === 'padDown') my += 1;
+      else if (p.role === 'padAcc') mx += 1;
+      else if (p.role === 'padBrk') mx -= 1;
     }
     this.moveY = Math.max(-1, Math.min(1, my));
+    this.moveX = Math.max(-1, Math.min(1, mx));
   }
 
   /** フレーム終端で単発入力をクリア */
@@ -214,12 +232,17 @@ export class Input {
   get langPressed(): boolean {
     return this.langQ;
   }
-  /** 移動パッド/ドラッグが押されているか（デッキ描画用） */
   get holdingUp(): boolean {
     return this.moveY < -0.2;
   }
   get holdingDown(): boolean {
     return this.moveY > 0.2;
+  }
+  get holdingAcc(): boolean {
+    return this.moveX > 0.2;
+  }
+  get holdingBrk(): boolean {
+    return this.moveX < -0.2;
   }
   get holdingJumpPad(): boolean {
     for (const p of this.pointers.values()) if (p.role === 'jump') return true;
@@ -234,41 +257,51 @@ export class Input {
     if (d.h < 40) return;
     const px = Math.max(2, Math.floor(this.video.scale));
 
-    const drawPad = (r: Rect, active: boolean, dir: 'up' | 'down' | null, label: string) => {
-      ctx.fillStyle = active ? '#3ec6c0' : '#241b3a';
+    const frame = (r: Rect, active: boolean, accent: string) => {
+      ctx.fillStyle = active ? accent : '#241b3a';
       ctx.fillRect(r.x, r.y, r.w, r.h);
-      ctx.fillStyle = active ? '#7fe8e2' : '#4a3a6a';
+      ctx.fillStyle = active ? '#f5f1e8' : '#4a3a6a';
       ctx.fillRect(r.x, r.y, r.w, px);
       ctx.fillRect(r.x, r.y, px, r.h);
-      ctx.fillStyle = active ? '#1b7a76' : '#171028';
+      ctx.fillStyle = '#171028';
       ctx.fillRect(r.x, r.y + r.h - px, r.w, px);
       ctx.fillRect(r.x + r.w - px, r.y, px, r.h);
+    };
+    const tri = (r: Rect, dir: 'up' | 'down', active: boolean) => {
       const cx = r.x + r.w / 2;
       const cy = r.y + r.h / 2;
+      const s = Math.min(r.w, r.h) * 0.22;
       ctx.fillStyle = active ? '#14101f' : '#8f86b8';
-      if (dir) {
-        const s = Math.min(r.w, r.h) * 0.22;
-        ctx.beginPath();
-        if (dir === 'up') {
-          ctx.moveTo(cx, cy - s);
-          ctx.lineTo(cx - s, cy + s * 0.7);
-          ctx.lineTo(cx + s, cy + s * 0.7);
-        } else {
-          ctx.moveTo(cx, cy + s);
-          ctx.lineTo(cx - s, cy - s * 0.7);
-          ctx.lineTo(cx + s, cy - s * 0.7);
-        }
-        ctx.closePath();
-        ctx.fill();
+      ctx.beginPath();
+      if (dir === 'up') {
+        ctx.moveTo(cx, cy - s);
+        ctx.lineTo(cx - s, cy + s * 0.7);
+        ctx.lineTo(cx + s, cy + s * 0.7);
       } else {
-        ctx.font = `bold ${Math.floor(Math.min(r.w, r.h) * 0.28)}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label, cx, cy);
+        ctx.moveTo(cx, cy + s);
+        ctx.lineTo(cx - s, cy - s * 0.7);
+        ctx.lineTo(cx + s, cy - s * 0.7);
       }
+      ctx.closePath();
+      ctx.fill();
     };
-    drawPad(this.padUp, this.holdingUp, 'up', '');
-    drawPad(this.padDown, this.holdingDown, 'down', '');
-    drawPad(this.padJump, this.holdingJumpPad, null, 'JUMP');
+    const label = (r: Rect, str: string, active: boolean, size = 0.22) => {
+      ctx.font = `bold ${Math.floor(Math.min(r.w, r.h) * size + r.w * 0.06)}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = active ? '#14101f' : '#8f86b8';
+      ctx.fillText(str, r.x + r.w / 2, r.y + r.h / 2);
+    };
+
+    frame(this.padUp, this.holdingUp, '#3ec6c0');
+    tri(this.padUp, 'up', this.holdingUp);
+    frame(this.padDown, this.holdingDown, '#3ec6c0');
+    tri(this.padDown, 'down', this.holdingDown);
+    frame(this.padAcc, this.holdingAcc, '#f2a33c');
+    label(this.padAcc, '»DASH', this.holdingAcc, 0.14);
+    frame(this.padBrk, this.holdingBrk, '#4aa8e0');
+    label(this.padBrk, '«SLOW', this.holdingBrk, 0.14);
+    frame(this.padJump, this.holdingJumpPad, '#e8504b');
+    label(this.padJump, 'JUMP', this.holdingJumpPad, 0.2);
   }
 }

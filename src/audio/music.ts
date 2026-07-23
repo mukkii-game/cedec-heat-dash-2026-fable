@@ -352,21 +352,21 @@ export class MusicPlayer {
     const when = t - c.currentTime;
     const mg = this.au.musicGain;
     if (sec.kick[step]) {
-      this.au.tone({ type: 'sine', f0: 150, f1: 44, t: 0.11, vol: 0.5, when, dest: mg, slideT: 0.09 });
-      this.au.noise({ t: 0.015, vol: 0.18, when, dest: mg, lp: 3000 });
+      this.au.tone({ type: 'sine', f0: 150, f1: 44, t: 0.11, vol: 0.4, when, dest: mg, slideT: 0.09 });
+      this.au.noise({ t: 0.012, vol: 0.1, when, dest: mg, lp: 2400 });
     }
     if (sec.snare[step]) {
-      this.au.noise({ t: 0.11, vol: 0.22, when, hp: 1400, dest: mg });
-      this.au.tone({ type: 'triangle', f0: 190, f1: 150, t: 0.08, vol: 0.16, when, dest: mg });
+      this.au.noise({ t: 0.1, vol: 0.13, when, hp: 1600, lp: 7500, dest: mg });
+      this.au.tone({ type: 'triangle', f0: 190, f1: 150, t: 0.08, vol: 0.1, when, dest: mg });
     }
     if (sec.hatC[step]) {
-      this.au.noise({ t: 0.028, vol: 0.09, when, hp: 7000, dest: mg });
+      this.au.noise({ t: 0.025, vol: 0.05, when, hp: 6800, dest: mg });
     }
     if (sec.hatO[step]) {
-      this.au.noise({ t: 0.14, vol: 0.1, when, hp: 6500, dest: mg });
+      this.au.noise({ t: 0.12, vol: 0.055, when, hp: 6200, dest: mg });
     }
     if (this.heat && step % 4 === 2) {
-      this.au.noise({ t: 0.05, vol: 0.07, when, hp: 8500, dest: mg });
+      this.au.noise({ t: 0.04, vol: 0.04, when, hp: 7800, dest: mg });
     }
     for (const n of sec.bass) {
       if (n.step === step) {
@@ -375,8 +375,8 @@ export class MusicPlayer {
     }
     for (const n of sec.lead) {
       if (n.step === step) {
-        this.playLead(n.f, this.stepDur * n.dur, t, 0.16 * sec.leadVol);
-        if (this.heat) this.playLead(n.f * 2, this.stepDur * n.dur, t, 0.05 * sec.leadVol);
+        this.playLead(n.f, this.stepDur * n.dur, t, 0.105 * sec.leadVol);
+        if (this.heat) this.playLead(n.f * 2, this.stepDur * n.dur, t, 0.032 * sec.leadVol);
       }
     }
     for (const n of sec.arp) {
@@ -393,11 +393,11 @@ export class MusicPlayer {
     o.frequency.value = f;
     const flt = c.createBiquadFilter();
     flt.type = 'lowpass';
-    flt.frequency.value = 750;
+    flt.frequency.value = 620;
     const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.2, t + 0.008);
-    g.gain.setValueAtTime(0.2, t + dur * 0.7);
+    g.gain.linearRampToValueAtTime(0.15, t + 0.01);
+    g.gain.setValueAtTime(0.15, t + dur * 0.7);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.95);
     o.connect(flt);
     flt.connect(g);
@@ -411,6 +411,11 @@ export class MusicPlayer {
     const o = c.createOscillator();
     o.type = 'square';
     o.frequency.value = f;
+    // 角を丸めるローパス
+    const flt = c.createBiquadFilter();
+    flt.type = 'lowpass';
+    flt.frequency.value = 2100;
+    flt.Q.value = 0.7;
     // ビブラート
     const lfo = c.createOscillator();
     lfo.frequency.value = 5.5;
@@ -420,10 +425,11 @@ export class MusicPlayer {
     lg.connect(o.frequency);
     const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.01);
-    g.gain.setValueAtTime(vol * 0.85, t + Math.max(0.01, dur * 0.8));
+    g.gain.linearRampToValueAtTime(vol, t + 0.015);
+    g.gain.setValueAtTime(vol * 0.85, t + Math.max(0.015, dur * 0.8));
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g);
+    o.connect(flt);
+    flt.connect(g);
     g.connect(this.au.musicGain);
     g.connect(this.au.delay);
     o.start(t);
@@ -439,7 +445,7 @@ export class MusicPlayer {
     o.frequency.value = f;
     const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.085, t + 0.006);
+    g.gain.linearRampToValueAtTime(0.05, t + 0.008);
     g.gain.exponentialRampToValueAtTime(0.0001, t + Math.min(dur, 0.14));
     o.connect(g);
     g.connect(this.au.musicGain);

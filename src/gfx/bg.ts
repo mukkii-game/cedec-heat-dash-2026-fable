@@ -6,7 +6,7 @@ import { VW, HORIZON_Y, FLOOR_TOP, FLOOR_BOTTOM } from '../core/video';
 
 // ---- 投影 ----
 export const PSX = 96; // プレイヤーの画面X
-export const PPM = 9; // 手前(z=1)でのpx/m
+export const PPM = 14; // 手前(z=1)でのpx/m（スピード感重視）
 
 const FH = FLOOR_BOTTOM - FLOOR_TOP;
 
@@ -117,24 +117,24 @@ export class Background {
     const g = c.getContext('2d')!;
     g.fillStyle = t.paveA;
     g.fillRect(0, 0, TEX_W, TEX_H);
-    // 大判タイル 16×12px(2m×1.5m) の市松
+    // タイル 12×12px(1.5m角) の市松（目地が細かいほど速度が伝わる）
     for (let ty = 0; ty < TEX_H / 12; ty++) {
-      for (let tx = 0; tx < TEX_W / 16; tx++) {
+      for (let tx = 0; tx < TEX_W / 12; tx++) {
         const n = hash(tx * 7 + ty * 13);
         if ((tx + ty) % 2 === 0) {
           g.fillStyle = t.paveB;
-          g.fillRect(tx * 16, ty * 12, 16, 12);
+          g.fillRect(tx * 12, ty * 12, 12, 12);
         }
         // タイルのランダムな汚れ/欠け
         if (n > 0.82) {
           g.fillStyle = t.grout;
-          g.fillRect(tx * 16 + Math.floor(n * 12), ty * 12 + Math.floor(n * 8), 2, 1);
+          g.fillRect(tx * 12 + Math.floor(n * 9), ty * 12 + Math.floor(n * 8), 2, 1);
         }
       }
     }
     // 目地
     g.fillStyle = t.grout;
-    for (let x = 0; x < TEX_W; x += 16) g.fillRect(x, 0, 1, TEX_H);
+    for (let x = 0; x < TEX_W; x += 12) g.fillRect(x, 0, 1, TEX_H);
     for (let y = 0; y < TEX_H; y += 12) g.fillRect(0, y, TEX_W, 1);
     // 奥端の縁石帯
     g.fillStyle = t.curb;

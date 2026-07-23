@@ -1,7 +1,7 @@
 // ゲームプレイ本体。走行・熱・障害物・レーザー・コンビニ・HUD・演出。
 
 import { VW, VH, FLOOR_TOP, HUD_TOP } from '../core/video';
-import { bitmapText, text } from '../core/font';
+import { bitmapText, text, textWidth } from '../core/font';
 import { fmtTime } from '../core/i18n';
 import { Background, THEMES, zToY, scaleAt, ppmAt, sxOf, PSX, hash } from '../gfx/bg';
 import { blit, blitHeatTint, flipX, type Sprite } from '../gfx/pix';
@@ -1465,7 +1465,8 @@ export class Stage implements Scene {
       const sy = zToY(this.pz) - 34 * scaleAt(this.pz) * SPR - (this.airT >= 0 ? 12 : 0);
       const alpha = q.t < 0.3 ? q.t / 0.3 : 1;
       g.globalAlpha = alpha;
-      const w = Math.min(180, q.text.length * 11 + 10);
+      // 幅は実測（文字数ベースの概算だと長い日本語テキストで吹き出しからはみ出すため）
+      const w = Math.min(220, textWidth(q.text, 10) + 10);
       const x0 = Math.round(PSX - 10);
       const y0 = Math.round(sy - 16);
       g.fillStyle = '#f5f1e8';

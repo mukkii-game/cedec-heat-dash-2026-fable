@@ -47,7 +47,8 @@ test.describe('CEDEC HEAT DASH 2026 - smoke', () => {
     await page.goto('/?day=1&auto=1');
     await page.waitForTimeout(500);
     await page.keyboard.press('Enter');
-    // Day1 limit is 60s of in-game time; wall-clock should clear well before that
+    // Standard autopilot clears Day1 in ~30s plus the ~2.5s post-goal rest
+    // animation before the result screen; give it a comfortable margin.
     await page.waitForTimeout(45_000);
 
     expect(errors, `console errors: ${errors.join('\n')}`).toEqual([]);
@@ -57,7 +58,7 @@ test.describe('CEDEC HEAT DASH 2026 - smoke', () => {
     await page.goto('/?day=1&auto=1');
     await page.waitForTimeout(500);
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(35_000);
+    await page.waitForTimeout(42_000);
 
     const saved = await page.evaluate(() => localStorage.getItem('cedec-heat-dash-2026:v1'));
     expect(saved).not.toBeNull();

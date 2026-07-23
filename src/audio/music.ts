@@ -68,71 +68,83 @@ function bar(kick = D1_KICK, snare = D1_SNARE, hat = D1_HAT) {
   return { kick, snare, hat };
 }
 
-/** DAY1「モーニング・プロムナード」A長調 132BPM 爽快 */
+/**
+ * DAY1「朝のシャッフル」A自然短調（ジャズのii-V-i進行, Dm7-G7-Cmaj7-Fmaj7-Bm7b5-E7-Am7）
+ * 132BPM、強めのスウィングでシャッフルビート。メトロクロスのような「軽快なのに
+ * どこか物悲しい」チップチューン・ジャズを狙う（既存曲のメロディーは一切使用しない）。
+ */
 const DAY1_SONG: Song = {
   bpm: 132,
-  swing: 0.04,
+  swing: 0.17,
   intro: [
-    { steps: 16, kick: D1_KICK, hat: 'x.x.x.x.x.x.x.x.', bass: 'A2 . A3 . A2 . A3 . A2 . A3 . A2 . B2 .' },
+    { steps: 16, kick: D1_KICK, hat: 'x.x.x.x.x.x.x.x.', bass: 'A2 . A3 . D2 . D3 . G2 . G3 . C2 . C3 .' },
   ],
   loop: [
     {
+      // Dm7
       steps: 16,
       ...bar(),
-      bass: 'A2 . A3 . A2 . A3 . A2 . A3 . A2 A2 A3 .',
-      lead: 'A4:2 C#5:2 E5:2 C#5:2 B4:2 A4:2 B4:4',
-      arp: 'A3 C#4 E4 C#4 A3 C#4 E4 C#4 A3 C#4 E4 C#4 A3 C#4 E4 C#4',
+      bass: 'D2 . D3 . D2 . D3 . D2 . D3 . D2 A2 G#2 .',
+      lead: 'D5:2 F5:2 A4:2 C5:2 D5:2 F5:2 E5:4',
+      arp: 'D3 F3 A3 F3 D3 F3 A3 F3 D3 F3 A3 F3 D3 F3 A3 F3',
     },
     {
+      // G7
       steps: 16,
       ...bar(),
-      bass: 'A2 . A3 . A2 . A3 . A2 . A3 . G2 G2 A2 .',
-      lead: 'C#5:2 E5:2 F#5:2 E5:2 C#5:2 A4:2 E4:4',
-      arp: 'A3 C#4 E4 C#4 A3 C#4 E4 C#4 A3 C#4 E4 C#4 A3 C#4 E4 C#4',
+      bass: 'G2 . G3 . G2 . G3 . G2 . G3 . G2 D2 B2 .',
+      lead: 'B4:2 D5:2 F5:2 D5:2 B4:2 G4:2 F4:4',
+      arp: 'G3 B3 D4 B3 G3 B3 D4 B3 G3 B3 D4 B3 G3 B3 D4 B3',
     },
     {
+      // Cmaj7
       steps: 16,
       ...bar(),
-      bass: 'D2 . D3 . D2 . D3 . D2 . D3 . D2 D2 D3 .',
-      lead: 'F#4:2 A4:2 D5:2 A4:2 B4:2 A4:2 F#4:4',
-      arp: 'D3 F#3 A3 F#3 D3 F#3 A3 F#3 D3 F#3 A3 F#3 D3 F#3 A3 F#3',
+      bass: 'C2 . C3 . C2 . C3 . C2 . C3 . C2 G2 E2 .',
+      lead: 'E5:2 G5:2 B4:2 G4:2 E4:2 C5:2 B4:4',
+      arp: 'C3 E3 G3 E3 C3 E3 G3 E3 C3 E3 G3 E3 C3 E3 G3 E3',
     },
     {
+      // Fmaj7
       steps: 16,
       ...bar(),
-      bass: 'E2 . E3 . E2 . E3 . E2 . E3 . E2 E2 E3 .',
-      lead: 'G#4:2 B4:2 E5:2 B4:2 C#5:2 B4:2 G#4:2 E4:2',
+      bass: 'F2 . F3 . F2 . F3 . F2 . F3 . F2 C2 C3 .',
+      lead: 'F5:2 A4:2 C5:2 E5:2 F5:2 C5:2 A4:4',
+      arp: 'F3 A3 C4 A3 F3 A3 C4 A3 F3 A3 C4 A3 F3 A3 C4 A3',
+    },
+    {
+      // Bm7b5（ii of V、半音下降で少し翳りを出す）
+      steps: 16,
+      ...bar(),
+      bass: 'B2 . B3 . B2 . B3 . B2 . B3 . B2 F2 D#2 .',
+      lead: 'D5:2 F5:2 A4:2 F4:2 D4:2 B4:2 A4:4',
+      arp: 'B3 D4 F4 D4 B3 D4 F4 D4 B3 D4 F4 D4 B3 D4 F4 D4',
+    },
+    {
+      // E7（属7、導音G#で緊張）
+      steps: 16,
+      ...bar(),
+      bass: 'E2 . E3 . E2 . E3 . E2 . E3 . E2 B2 G#2 .',
+      lead: 'G#4:2 B4:2 D5:2 B4:2 G#4:2 E4:2 D4:4',
       arp: 'E3 G#3 B3 G#3 E3 G#3 B3 G#3 E3 G#3 B3 G#3 E3 G#3 B3 G#3',
     },
     {
+      // Am7（トニック帰着。ここだけ少し温かく）
       steps: 16,
       ...bar(),
-      bass: 'F#2 . F#3 . F#2 . F#3 . F#2 . F#3 . F#2 F#2 F#3 .',
-      lead: 'F#5:2 E5:2 C#5:2 A4:2 F#4:2 A4:2 C#5:4',
-      arp: 'F#3 A3 C#4 A3 F#3 A3 C#4 A3 F#3 A3 C#4 A3 F#3 A3 C#4 A3',
+      bass: 'A2 . A3 . A2 . A3 . A2 . A3 . A2 E2 G2 .',
+      lead: 'E5:2 C5:2 A4:2 C5:2 E5:2 G4:2 A4:4',
+      arp: 'A3 C4 E4 C4 A3 C4 E4 C4 A3 C4 E4 C4 A3 C4 E4 C4',
     },
     {
-      steps: 16,
-      ...bar(),
-      bass: 'D2 . D3 . D2 . D3 . D2 . D3 . D2 D2 D3 .',
-      lead: 'D5:2 C#5:2 B4:2 A4:2 B4:2 C#5:2 D5:4',
-      arp: 'D3 F#3 A3 F#3 D3 F#3 A3 F#3 D3 F#3 A3 F#3 D3 F#3 A3 F#3',
-    },
-    {
-      steps: 16,
-      ...bar(),
-      bass: 'E2 . E3 . E2 . E3 . E2 . E3 . E2 E2 E3 .',
-      lead: 'E5:2 B4:2 G#4:2 B4:2 E5:2 D5:2 C#5:2 B4:2',
-      arp: 'E3 G#3 B3 G#3 E3 G#3 B3 G#3 E3 G#3 B3 G#3 E3 G#3 B3 G#3',
-    },
-    {
+      // E7 ターンアラウンド → ループ先頭のDm7へ戻る
       steps: 16,
       kick: 'x...x...x...x.xx',
       snare: '....x.......x..x',
       hat: 'x.xxx.xxx.xxxxxo',
       bass: 'E2 . E3 . E2 . E3 . E2 F#2 G#2 . A2 . B2 .',
-      lead: 'A4 B4 C#5 D5 E5:2 . E5:2 . E5:2 G#4:2 B4:2',
-      arp: 'E3 G#3 B3 G#3 E3 G#3 B3 G#3 A3 C#4 E4 C#4 B3 D#4 F#4 B3',
+      lead: 'E4 F#4 G#4 A4 B4:2 . B4:2 . B4:2 D5:2 G#4:2',
+      arp: 'E3 G#3 B3 G#3 F#3 A3 C#4 A3 G#3 B3 D#4 B3 A3 C#4 E4 A4',
     },
   ],
 };
@@ -148,7 +160,7 @@ function bar2(kick = D2_KICK, snare = D2_SNARE, hat = D2_HAT) {
 
 const DAY2_SONG: Song = {
   bpm: 140,
-  swing: 0.03,
+  swing: 0.13,
   intro: [
     { steps: 16, kick: D2_KICK, hat: 'x.x.x.x.x.x.x.x.', bass: 'D2 . D3 . D2 . D3 . D2 . D3 . C2 C2 D2 .' },
   ],
@@ -225,6 +237,7 @@ function bar3(kick = D3_KICK, snare = D3_SNARE, hat = D3_HAT) {
 
 const DAY3_SONG: Song = {
   bpm: 148,
+  swing: 0.15,
   intro: [
     { steps: 16, kick: D3_KICK, hat: 'x.x.x.x.x.x.x.x.', bass: 'E2 . E2 E3 . E2 . E3 E2 . E2 F2 E2 . B1 .' },
   ],
@@ -293,6 +306,7 @@ const DAY3_SONG: Song = {
 /** タイトル「フェスの朝」ゆったりチップ */
 const TITLE_SONG: Song = {
   bpm: 104,
+  swing: 0.14,
   intro: [],
   loop: [
     {

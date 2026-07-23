@@ -193,13 +193,18 @@ export class TitleScene implements Scene {
     g.fillRect(0, HUD_TOP, VW, 1);
 
     // ロゴ（背後に太陽）
-    const ly = 42 + Math.sin(this.t * 1.5) * 2;
+    const ly = 40 + Math.sin(this.t * 1.5) * 2;
     pixCircle(g, VW / 2, Math.round(ly + 34), 46, 'rgba(255,217,77,0.25)');
     pixCircle(g, VW / 2, Math.round(ly + 34), 38, 'rgba(255,180,60,0.3)');
-    bitmapText(g, 'CEDEC', VW / 2, ly, { color: '#3ec6c0', align: 'center', scale: 3, shadow: '#221833' });
-    bitmapText(g, 'HEAT DASH', VW / 2, ly + 26, { color: '#ffd94d', align: 'center', scale: 4, shadow: '#b03042' });
-    bitmapText(g, '2026', VW / 2, ly + 62, { color: '#f5f1e8', align: 'center', scale: 2, shadow: '#221833' });
-    text(g, i18n.t('title.sub'), VW / 2, ly + 82, { size: 10, color: '#f5f1e8', align: 'center' });
+    text(g, 'めざせCEDEC', VW / 2, ly, {
+      size: 24,
+      color: '#ffd94d',
+      align: 'center',
+      bold: true,
+      outline: '#b03042',
+    });
+    bitmapText(g, 'HEAT DASH 2026', VW / 2, ly + 34, { color: '#3ec6c0', align: 'center', scale: 2, shadow: '#221833' });
+    text(g, i18n.t('title.sub'), VW / 2, ly + 60, { size: 10, color: '#f5f1e8', align: 'center' });
 
     if (this.mode === 'press') {
       if (Math.floor(this.t * 2) % 2 === 0) {

@@ -100,6 +100,58 @@ export function blit(
   }
 }
 
+// heatTint用のスクラッチキャンバス（毎フレーム生成しないよう使い回す）
+let tintScratch: HTMLCanvasElement | null = null;
+let tintScratchCtx: CanvasRenderingContext2D | null = null;
+
+/**
+ * ヒートゲージ演出: スプライトのシルエットに沿って、足元から頭へ
+ * 赤み（frac=0..1）がせり上がるように重ね塗りして描画する。
+ * source-atopでスプライトの不透明部分だけに着色するため、パレット改変不要。
+ */
+export function blitHeatTint(
+  ctx: CanvasRenderingContext2D,
+  s: Sprite,
+  x: number,
+  y: number,
+  scale: number,
+  frac: number,
+  tintColor = '#e8342a',
+): void {
+  if (frac <= 0.02) {
+    blit(ctx, s, x, y, scale);
+    return;
+  }
+  if (!tintScratch) {
+    tintScratch = document.createElement('canvas');
+    tintScratchCtx = tintScratch.getContext('2d')!;
+    tintScratchCtx.imageSmoothingEnabled = false;
+  }
+  const sc = tintScratch;
+  const cx = tintScratchCtx!;
+  if (sc.width !== s.w || sc.height !== s.h) {
+    sc.width = s.w;
+    sc.height = s.h;
+  } else {
+    cx.clearRect(0, 0, s.w, s.h);
+  }
+  cx.drawImage(s.c, 0, 0);
+  const f = Math.min(1, Math.max(0, frac));
+  const tintH = Math.ceil(s.h * f);
+  cx.globalCompositeOperation = 'source-atop';
+  cx.globalAlpha = Math.min(0.82, 0.25 + f * 0.6);
+  cx.fillStyle = tintColor;
+  cx.fillRect(0, s.h - tintH, s.w, tintH);
+  cx.globalAlpha = 1;
+  cx.globalCompositeOperation = 'source-over';
+
+  const w = Math.max(1, Math.round(s.w * scale));
+  const h = Math.max(1, Math.round(s.h * scale));
+  const dx = Math.round(x - w * s.ox);
+  const dy = Math.round(y - h * s.oy);
+  ctx.drawImage(sc, 0, 0, s.w, s.h, dx, dy, w, h);
+}
+
 /** 単純な色置換コピー（モブ量産・日別パレット差し替え用） */
 export function recolor(s: Sprite, from: string[], to: string[]): Sprite {
   const c = document.createElement('canvas');

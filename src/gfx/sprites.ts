@@ -4,15 +4,16 @@
 import { mk, compose, flipX, recolor, type Sprite } from './pix';
 
 // ---- 主人公パレット ----
+// シャツ/ショーツは白寄りに（ヒートゲージの体色変化=赤み上昇を見せるための下地）
 const P: Record<string, string> = {
   r: '#e8504b', // キャップ赤
   R: '#b03042',
   c: '#ff8a78', // キャップハイライト
   h: '#4a3524', // 髪
-  t: '#3ec6c0', // シャツ
-  T: '#2b8f92',
-  n: '#2e4a7a', // ショーツ紺
-  N: '#223558',
+  t: '#f2f8f6', // シャツ（白寄り）
+  T: '#cfe0dc',
+  n: '#eef1f8', // ショーツ（白寄り）
+  N: '#cdd4e4',
   o: '#f2a33c', // リュック
   O: '#c47a24',
   p: '#ff6ea8', // パスケース
@@ -147,6 +148,42 @@ const ARM_BRACE = [
   '........................',
   '........................',
   '........................',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+];
+// ゴール後の休息ポーズ用: 両腕が力なく前に垂れ、膝に手をつく
+const ARM_KNEEL = [
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '.......kk.......kk......',
+  '......ktsk.....ksTk.....',
+  '......ktsk.....ksTk.....',
+  '.......kssk...kSSk......',
+  '........kk.....kk.......',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+];
+// 膝をついて座り込む脚（両膝を前について踵の上に腰を落とす）
+const LEGS_KNEEL = [
+  '.......knnnnnk..........',
+  '......kNnnnnnnk.........',
+  '......knnnnnnnnk........',
+  '.....kSSssssSSSk........',
+  '....kSSk.....kSSk.......',
+  '....kWWk.....kWWk.......',
+  '....kddk.....kddk.......',
   '........................',
   '........................',
   '........................',
@@ -556,6 +593,45 @@ const CART_P = {
   m: '#8a8fa8',
 };
 
+// 赤レンガ（ゼビウス バキュラ風に回転しながら向かってくる）。回転用に4方向を用意
+const BRICK_0 = ['.kkkkkkkkkk.', 'kbbbbbbbbbbk', 'kbBBbbBBbbbk', 'kbbbbbbbbbbk', 'kbBBbbBBbbbk', 'kbbbbbbbbbbk', '.kkkkkkkkkk.'];
+const BRICK_1 = ['....kkkkkk..', '...kbbbbbbk.', '..kbbBBbbbbk', '.kbbbbbbBBbk', 'kbbBBbbbbbk.', 'kbbbbbbBBk..', '.kkkkkkkk...'];
+const BRICK_2 = ['..kkkkkkkk..', '.kbbbbbbbbk.', 'kbBBbbBBbbbk', 'kbbbbbbbbbbk', 'kbBBbbBBbbbk', '.kbbbbbbbbk.', '..kkkkkkkk..'];
+const BRICK_3 = ['...kkkkkk...', '.kbbbbbbk...', 'kbbBBbbbbk..', '.kBBbbbbbbk.', '..kbbbbBBbk.', '...kbbbbbbk.', '...kkkkkk...'];
+const BRICK_P = { b: '#c0453a', B: '#8a2c24' };
+
+// キックボード迷惑にーちゃん（サインカーブで爆走）
+const KICKBOARD = [
+  '.......kkkkk...........',
+  '......krrrrrk..........',
+  '......krhhhrk..........',
+  '.......khsssk..........',
+  '.......ksswksk.........',
+  '.......kssssk..........',
+  '........kssSk..........',
+  '.......kkjjkk...........',
+  '......kjjjjjjk..........',
+  '.....kjjjjjjjjk.........',
+  '....kjjkjjjjjjjk........',
+  '....kjkkkjjjjjjk........',
+  '....kk...kjjjjk.........',
+  '.........kjjjk..........',
+  '........kk.kk...........',
+  '........................',
+  'kkkkkkkkkkkkkkkkkkkkkkkk',
+  'kddddddddddddddddddddddk',
+  '.kkk................kkk.',
+  '.kwwk..............kwwk.',
+  '.kkkk..............kkkk.',
+];
+const KICKBOARD_P = {
+  r: '#7a68c8', // ヘルメット
+  h: '#4a3524',
+  j: '#e8a83c', // ジャケット
+  d: '#5a5468', // デッキ
+  w: '#2a2a3a', // 車輪
+};
+
 // 名刺交換マン（スーツ）
 const CARDMAN = [
   '......kkkkk.....',
@@ -614,6 +690,8 @@ export interface PlayerFrames {
   collapse: Sprite[];
   win: Sprite;
   idle: Sprite;
+  /** ゴール後: 膝をつき頭を垂れて息を整えるポーズ */
+  restKneel: Sprite;
 }
 
 export interface SpriteBank {
@@ -631,6 +709,8 @@ export interface SpriteBank {
   suitcase: Sprite;
   sign: Sprite;
   peds: Sprite[][]; // [variant][frame]
+  brick: Sprite[]; // 回転4方向
+  kickboard: Sprite;
 }
 
 // 通行人: プレイヤーと同構造の簡略版（2フレーム）を色替え量産
@@ -722,6 +802,7 @@ export function buildSprites(): SpriteBank {
   const stumble = makePlayerFrame(ARM_BRACE, LEGS_STUMBLE, 1);
   const win = makePlayerFrame(ARM_UP, LEGS[1], 0);
   const idle = makePlayerFrame(ARM_MID, LEGS_IDLE, 0);
+  const restKneel = makePlayerFrame(ARM_KNEEL, LEGS_KNEEL, 4);
   const collapse = [mk(COLLAPSE_1, P), mk(COLLAPSE_2, P), mk(COLLAPSE_3, { ...P, x: '#221833' })];
 
   const peds = [
@@ -732,7 +813,7 @@ export function buildSprites(): SpriteBank {
   ];
 
   return {
-    player: { run, jump, stumble, collapse, win, idle },
+    player: { run, jump, stumble, collapse, win, idle, restKneel },
     cone: mk(CONE, CONE_P),
     planter: mk(PLANTER, PLANTER_P),
     coolbox: mk(COOLBOX, COOLBOX_P),
@@ -745,6 +826,8 @@ export function buildSprites(): SpriteBank {
     dune: mk(DUNE, DUNE_P),
     suitcase: mk(SUITCASE, SUITCASE_P),
     sign: mk(SIGN, SIGN_P),
+    brick: [mk(BRICK_0, BRICK_P), mk(BRICK_1, BRICK_P), mk(BRICK_2, BRICK_P), mk(BRICK_3, BRICK_P)],
+    kickboard: mk(KICKBOARD, KICKBOARD_P),
     peds,
   };
 }

@@ -205,6 +205,7 @@ export class TitleScene implements Scene {
       if (Math.floor(this.t * 2) % 2 === 0) {
         text(g, i18n.t('title.press'), VW / 2, 172, { size: 11, color: '#ffd94d', align: 'center', bold: true });
       }
+      text(g, i18n.t('title.controls'), VW / 2, 190, { size: 8, color: '#8f86b8', align: 'center' });
       // ベストタイム
       const bests = save.data.best;
       if (bests.some((b) => b !== null)) {
@@ -352,14 +353,14 @@ export class ResultScene implements Scene {
   private menu = new Menu(3);
   readonly day: number;
   private time: number;
-  private rank: string;
+  private stars: number;
   private isBest: boolean;
 
-  constructor(ctx: Ctx, day: number, time: number, rank: string, isBest: boolean) {
+  constructor(ctx: Ctx, day: number, time: number, stars: number, isBest: boolean) {
     this.ctx = ctx;
     this.day = day;
     this.time = time;
-    this.rank = rank;
+    this.stars = stars;
     this.isBest = isBest;
   }
 
@@ -440,24 +441,27 @@ export class ResultScene implements Scene {
 
     // タイムロール
     const shown = this.t < 0.9 ? this.time * Math.min(1, this.t / 0.9) : this.time;
-    bitmapText(g, `${i18n.t('res.time')}`, VW / 2 - 80, 78, { color: '#8f86b8' });
-    bitmapText(g, fmtTime(shown), VW / 2 + 10, 74, { color: '#f5f1e8', scale: 2 });
+    bitmapText(g, `${i18n.t('res.time')}`, VW / 2 - 60, 62, { color: '#8f86b8', align: 'right' });
+    bitmapText(g, fmtTime(shown), VW / 2 - 50, 58, { color: '#f5f1e8', scale: 2 });
+
+    // ★評価スタンプ（タイムの下に中央揃え）
+    if (this.t > 1.4) {
+      const pop = Math.min(1, (this.t - 1.4) / 0.15);
+      const sc = Math.max(2, Math.round(2 + (1 - pop) * 1.6));
+      for (let i = 0; i < 3; i++) {
+        const filled = i < this.stars;
+        const col = filled ? '#ffd94d' : '#3a3358';
+        bitmapText(g, '★', VW / 2 - 26 + i * 26, 96, { color: col, align: 'center', scale: sc, shadow: '#221833' });
+      }
+      text(g, i18n.t(`res.star${this.stars}`), VW / 2, 122, { size: 9, color: '#ffd94d', align: 'center' });
+    }
 
     const best = save.data.best[this.day - 1];
     if (best !== null) {
-      bitmapText(g, `${i18n.t('res.best')} ${fmtTime(best)}`, VW / 2, 104, { color: '#8f86b8', align: 'center' });
+      bitmapText(g, `${i18n.t('res.best')} ${fmtTime(best)}`, VW / 2, 140, { color: '#8f86b8', align: 'center' });
     }
     if (this.isBest && this.t > 1.8 && Math.floor(this.t * 3) % 2 === 0) {
-      bitmapText(g, i18n.t('res.newRecord'), VW / 2, 118, { color: '#ffd94d', align: 'center' });
-    }
-
-    // ランクスタンプ
-    if (this.t > 1.4) {
-      const pop = Math.min(1, (this.t - 1.4) / 0.15);
-      const sc = 4 + (1 - pop) * 4;
-      const col = { S: '#ffd94d', A: '#3ec6c0', B: '#4ad84a', C: '#8f86b8' }[this.rank] ?? '#8f86b8';
-      bitmapText(g, this.rank, VW / 2 + 130, 66, { color: col, align: 'center', scale: Math.round(sc), shadow: '#221833' });
-      text(g, i18n.t(`res.rank${this.rank}`), VW / 2 + 130, 112, { size: 9, color: col, align: 'center' });
+      bitmapText(g, i18n.t('res.newRecord'), VW / 2, 154, { color: '#ffd94d', align: 'center' });
     }
 
     if (this.t > 1.2) {

@@ -420,7 +420,12 @@ export class Background {
   }
 
   /** 空〜近景壁まで（床より奥のすべて） */
-  drawBack(g: CanvasRenderingContext2D, camX: number, time: number): void {
+  drawBack(
+    g: CanvasRenderingContext2D,
+    camX: number,
+    time: number,
+    sunTarget?: { x: number; y: number; blend: number },
+  ): void {
     const t = this.theme;
     // 空
     const bands = t.sky.length;
@@ -429,8 +434,8 @@ export class Background {
       g.fillStyle = t.sky[i];
       g.fillRect(0, i * (HORIZON_Y / bands), VW, bandH);
     }
-    // 太陽
-    this.drawSun(g, time);
+    // 太陽（日射レーザー前は着弾地点の真上へ移動する）
+    this.drawSun(g, time, sunTarget);
     // 遠景（視差0.05）
     const farOff = Math.floor(camX * PPM * 0.05) % 480;
     g.drawImage(this.farStrip, -farOff, 54);
@@ -445,10 +450,17 @@ export class Background {
     g.drawImage(this.wallStrip, 480 - wallOff, 56);
   }
 
-  private drawSun(g: CanvasRenderingContext2D, time: number): void {
+  private drawSun(
+    g: CanvasRenderingContext2D,
+    time: number,
+    target?: { x: number; y: number; blend: number },
+  ): void {
     const t = this.theme;
-    const sx = t.giantSun ? 240 : 360;
-    const sy = t.giantSun ? 34 : 22;
+    const homeX = t.giantSun ? 240 : 360;
+    const homeY = t.giantSun ? 34 : 22;
+    const b = target ? Math.min(1, Math.max(0, target.blend)) : 0;
+    const sx = target ? homeX + (target.x - homeX) * b : homeX;
+    const sy = target ? homeY + (target.y - homeY) * b : homeY;
     const r = t.giantSun ? 30 : 10;
     const pulse = 1 + Math.sin(time * 2) * 0.04;
     g.fillStyle = '#fff6c8';

@@ -19,7 +19,6 @@ export type SfxName =
   | 'quip'
   | 'card'
   | 'lowHp'
-  | 'timeWarn'
   | 'countBeep'
   | 'go'
   | 'goal'
@@ -36,6 +35,8 @@ export class AudioSys {
   muted = false;
   private lowHpAt = 0;
   private lowHpStreak = 0;
+  private dashLoopNodes: { osc: OscillatorNode; gain: GainNode } | null = null;
+  private brakeLoopNodes: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
 
   constructor(muted: boolean) {
     this.muted = muted;
@@ -241,9 +242,6 @@ export class AudioSys {
         this.doLowHp(1.1, 0.08);
         break;
       }
-      case 'timeWarn':
-        this.tone({ f0: 740, t: 0.07, vol: 0.09, type: 'triangle' });
-        break;
       case 'countBeep':
         this.tone({ f0: 440, t: 0.1, vol: 0.13, type: 'triangle' });
         break;
@@ -289,5 +287,68 @@ export class AudioSys {
     if (heat >= 96) this.doLowHp(0.6, 0.09);
     else if (heat >= 86) this.doLowHp(1.0, 0.085);
     else this.doLowHp(1.4, 0.08);
+  }
+
+  /** ダッシュ中の持続音（風切り+ハイテンションなうなり）。ON/OFFはトグル時のみ呼べばよい */
+  setDashLoop(active: boolean): void {
+    const c = this.ctx;
+    if (!c) return;
+    if (active && !this.dashLoopNodes) {
+      const osc = c.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.value = 260;
+      const flt = c.createBiquadFilter();
+      flt.type = 'bandpass';
+      flt.frequency.value = 900;
+      flt.Q.value = 0.6;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, c.currentTime);
+      g.gain.linearRampToValueAtTime(0.045, c.currentTime + 0.12);
+      osc.connect(flt);
+      flt.connect(g);
+      g.connect(this.sfxGain);
+      osc.start();
+      this.dashLoopNodes = { osc, gain: g };
+    } else if (!active && this.dashLoopNodes) {
+      const { osc, gain } = this.dashLoopNodes;
+      gain.gain.cancelScheduledValues(c.currentTime);
+      gain.gain.setValueAtTime(gain.gain.value, c.currentTime);
+      gain.gain.linearRampToValueAtTime(0.0001, c.currentTime + 0.15);
+      osc.stop(c.currentTime + 0.17);
+      this.dashLoopNodes = null;
+    }
+  }
+
+  /** ブレーキ中の持続音（低くこもったブレーキ風ノイズ） */
+  setBrakeLoop(active: boolean): void {
+    const c = this.ctx;
+    if (!c) return;
+    if (active && !this.brakeLoopNodes) {
+      const len = c.sampleRate * 2;
+      const buf = c.createBuffer(1, len, c.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const flt = c.createBiquadFilter();
+      flt.type = 'lowpass';
+      flt.frequency.value = 500;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, c.currentTime);
+      g.gain.linearRampToValueAtTime(0.05, c.currentTime + 0.12);
+      src.connect(flt);
+      flt.connect(g);
+      g.connect(this.sfxGain);
+      src.start();
+      this.brakeLoopNodes = { src, gain: g };
+    } else if (!active && this.brakeLoopNodes) {
+      const { src, gain } = this.brakeLoopNodes;
+      gain.gain.cancelScheduledValues(c.currentTime);
+      gain.gain.setValueAtTime(gain.gain.value, c.currentTime);
+      gain.gain.linearRampToValueAtTime(0.0001, c.currentTime + 0.15);
+      src.stop(c.currentTime + 0.17);
+      this.brakeLoopNodes = null;
+    }
   }
 }

@@ -124,30 +124,32 @@ export function makeVending(): Sprite {
 
 /** 駅入口（スタート地点の演出） */
 export function makeStation(): Sprite {
-  const [c, g] = cv(72, 46);
+  const w = 108;
+  const [c, g] = cv(w, 50);
   // ガラスの箱
   g.fillStyle = OUTLINE;
-  g.fillRect(0, 8, 72, 38);
+  g.fillRect(0, 12, w, 38);
   g.fillStyle = '#bfe8f2';
-  g.fillRect(2, 10, 68, 34);
+  g.fillRect(2, 14, w - 4, 34);
   g.fillStyle = '#8fc8dc';
-  for (let x = 8; x < 70; x += 12) g.fillRect(x, 10, 2, 34);
+  for (let x = 8; x < w - 2; x += 12) g.fillRect(x, 14, 2, 34);
   // 屋根
   g.fillStyle = OUTLINE;
-  g.fillRect(-1, 4, 74, 6);
+  g.fillRect(-1, 8, w + 2, 6);
   g.fillStyle = '#8494b0';
-  g.fillRect(0, 5, 72, 4);
-  // 駅サイン
+  g.fillRect(0, 9, w, 4);
+  // 駅名サイン「みなとみらい駅」
+  const signW = w - 6;
   g.fillStyle = OUTLINE;
-  g.fillRect(18, 14, 36, 12);
+  g.fillRect(3, 0, signW, 12);
   g.fillStyle = '#2e4a7a';
-  g.fillRect(19, 15, 34, 10);
-  text(g, '駅', 36, 16, { size: 10, color: '#f5f1e8', align: 'center' });
+  g.fillRect(4, 1, signW - 2, 10);
+  text(g, 'みなとみらい駅', 3 + signW / 2, 1, { size: 8, color: '#f5f1e8', align: 'center', bold: true });
   // 階段（下り）
   g.fillStyle = '#14101f';
-  g.fillRect(26, 30, 20, 14);
+  g.fillRect(w / 2 - 10, 34, 20, 14);
   g.fillStyle = '#4a4a6a';
-  for (let i = 0; i < 5; i++) g.fillRect(26, 30 + i * 3, 20, 1);
+  for (let i = 0; i < 5; i++) g.fillRect(w / 2 - 10, 34 + i * 3, 20, 1);
   return sp(c);
 }
 
@@ -200,6 +202,65 @@ export function makeStore(): Sprite {
 }
 
 /** ゴールアーチの柱（1本。奥と手前に描く） */
+/** ゴール地点にそびえるドーム建物「パシフィコ横浜」風の会場入口 */
+export function makeDome(): Sprite {
+  const w = 220;
+  const h = 130;
+  const [c, g] = cv(w, h);
+  const cx = w / 2;
+  // 本体
+  g.fillStyle = OUTLINE;
+  g.fillRect(10, 60, w - 20, h - 60);
+  g.fillStyle = '#d8dce8';
+  g.fillRect(12, 62, w - 24, h - 64);
+  for (let x = 16; x < w - 16; x += 10) {
+    g.fillStyle = '#b8c0d8';
+    g.fillRect(x, 62, 1, h - 64);
+  }
+  // ドーム屋根
+  const domeR = 96;
+  const domeCy = 60;
+  g.fillStyle = OUTLINE;
+  for (let y = -domeR; y <= 0; y++) {
+    const half = Math.floor(Math.sqrt(Math.max(0, domeR * domeR - y * y)));
+    if (half > w / 2 - 6) continue;
+    g.fillRect(Math.round(cx - half), domeCy + y, half * 2, 1);
+  }
+  g.fillStyle = '#c8cfe0';
+  const domeR2 = domeR - 3;
+  for (let y = -domeR2; y <= -2; y++) {
+    const half = Math.floor(Math.sqrt(Math.max(0, domeR2 * domeR2 - y * y)));
+    if (half > w / 2 - 9) continue;
+    g.fillRect(Math.round(cx - half), domeCy + y, half * 2, 1);
+  }
+  // 骨組みライン（放射状）
+  g.strokeStyle = '#9aa4c0';
+  g.lineWidth = 1;
+  for (let k = -3; k <= 3; k++) {
+    const a = (k / 8) * Math.PI;
+    g.beginPath();
+    g.moveTo(cx, domeCy);
+    g.lineTo(cx + Math.sin(a) * domeR2, domeCy - Math.cos(a) * domeR2);
+    g.stroke();
+  }
+  // 入口（ガラスの大きなエントランス、中は明るく光る）
+  const doorW = 64;
+  g.fillStyle = OUTLINE;
+  g.fillRect(cx - doorW / 2 - 2, h - 46, doorW + 4, 46);
+  g.fillStyle = '#fff6d8';
+  g.fillRect(cx - doorW / 2, h - 44, doorW, 44);
+  g.fillStyle = '#ffe9a0';
+  for (let x = -doorW / 2; x < doorW / 2; x += 8) g.fillRect(cx + x, h - 44, 1, 44);
+  // 看板「パシフィコ横浜」
+  const signW = 150;
+  g.fillStyle = OUTLINE;
+  g.fillRect(cx - signW / 2 - 2, 96, signW + 4, 16);
+  g.fillStyle = '#e8504b';
+  g.fillRect(cx - signW / 2, 98, signW, 12);
+  text(g, 'パシフィコ横浜', cx, 99, { size: 9, color: '#f5f1e8', align: 'center', bold: true });
+  return sp(c, 0.5, 1);
+}
+
 export function makePillar(): Sprite {
   const [c, g] = cv(12, 58);
   g.fillStyle = OUTLINE;

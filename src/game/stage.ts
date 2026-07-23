@@ -4,7 +4,7 @@ import { VW, VH, FLOOR_TOP, HUD_TOP } from '../core/video';
 import { bitmapText, text } from '../core/font';
 import { fmtTime } from '../core/i18n';
 import { Background, THEMES, zToY, scaleAt, ppmAt, sxOf, PSX, hash } from '../gfx/bg';
-import { blit, flipX, type Sprite } from '../gfx/pix';
+import { blit, blitHeatTint, flipX, type Sprite } from '../gfx/pix';
 import {
   makeTree,
   makePalm,
@@ -12,11 +12,12 @@ import {
   makeStation,
   makeStore,
   makePillar,
+  makeDome,
   makeSign,
   makeBanner,
 } from '../gfx/wallart';
 import { COURSES, type Course, type ObDef } from './course';
-import { calcRank, type Ctx, type Scene } from './ctx';
+import { calcStars, type Ctx, type Scene } from './ctx';
 
 // ---- 調整値（GAME_DESIGN.md §3） ----
 const V_MIN = 4.5;
@@ -89,7 +90,7 @@ interface Quip {
   t: number;
 }
 
-type StState = 'intro' | 'ready' | 'play' | 'goal' | 'dead' | 'timeup';
+type StState = 'intro' | 'ready' | 'play' | 'goal' | 'dead';
 
 export class Stage implements Scene {
   private ctx: Ctx;
@@ -109,6 +110,8 @@ export class Stage implements Scene {
   private heat = 0;
   private dashing = false;
   private braking = false;
+  /** ダッシュ=前傾(+)、ブレーキ=後傾(-)。滑らかに追従するラジアン角 */
+  private tiltAngle = 0;
   private airT = -1; // -1=接地
   private stumbleT = 0;
   private invulnT = 0;
@@ -128,9 +131,9 @@ export class Stage implements Scene {
   private shakeT = 0;
   private flashT = 0;
   private time = 0; // 演出用グローバル時間
-  private lastWholeSec = -1;
   private firstShade = false;
   private firstLowHp = false;
+  private firstBrick = false;
   private hintT = 4.5;
   /** ?auto=1: 簡易AIで自走（クリア可能性検証・デモ用） */
   private autoPilot = new URLSearchParams(location.search).has('auto');
@@ -142,6 +145,7 @@ export class Stage implements Scene {
   private artStation: Sprite;
   private artStore: Sprite;
   private artPillar: Sprite;
+  private artDome: Sprite;
   private pedFlip: Sprite[][];
 
   constructor(ctx: Ctx, day: number) {
@@ -155,6 +159,7 @@ export class Stage implements Scene {
     this.artStation = makeStation();
     this.artStore = makeStore();
     this.artPillar = makePillar();
+    this.artDome = makeDome();
     this.pedFlip = ctx.sprites.peds.map((fr) => fr.map(flipX));
     this.reset();
   }
@@ -166,6 +171,7 @@ export class Stage implements Scene {
     this.heat = 0;
     this.dashing = false;
     this.braking = false;
+    this.tiltAngle = 0;
     this.airT = -1;
     this.stumbleT = 0;
     this.invulnT = 0;
@@ -179,9 +185,9 @@ export class Stage implements Scene {
     this.particles = [];
     this.quips = [];
     this.quipCd = 0;
-    this.lastWholeSec = -1;
     this.firstShade = false;
     this.firstLowHp = false;
+    this.firstBrick = false;
     this.hintT = 4.5;
     // phaseは決定論的（座標由来のhash）にする。乱数だと同じ日でも毎回
     // 人・カモメの動きが変わり、「覚えて上達する」がタイムに乗らなくなるため。
@@ -223,8 +229,8 @@ export class Stage implements Scene {
     return { maxV, heatRate, shaded, sand, glare, mist };
   }
 
-  private quip(str: string): void {
-    if (this.quipCd > 0) return;
+  private quip(str: string, force = false): void {
+    if (this.quipCd > 0 && !force) return;
     this.quips = [{ text: str, t: 1.8 }];
     this.quipCd = 2.2;
     this.ctx.audio.sfx('quip');
@@ -247,6 +253,7 @@ export class Stage implements Scene {
       this.stateT = 0;
       this.ctx.music.stop();
       this.ctx.audio.sfx('collapse');
+      this.quip(this.ctx.i18n.t('q.heatMax'), true);
     }
   }
 
@@ -295,6 +302,11 @@ export class Stage implements Scene {
         }
       }
     }
+    // プレイ中以外（ポーズ/死亡/ゴール等）は加減速の持続音を必ず止める
+    if (this.paused || this.state !== 'play') {
+      audio.setDashLoop(false);
+      audio.setBrakeLoop(false);
+    }
 
     if (this.paused) {
       this.updatePause();
@@ -335,9 +347,6 @@ export class Stage implements Scene {
         this.updateGoal(dt);
         break;
       case 'dead':
-        this.updateDead(dt);
-        break;
-      case 'timeup':
         this.updateDead(dt);
         break;
     }
@@ -400,20 +409,6 @@ export class Stage implements Scene {
     this.animT += dt * (this.v / 7);
     this.hintT = Math.max(0, this.hintT - dt);
 
-    const remain = this.course.limit - this.timer;
-    const whole = Math.ceil(remain);
-    if (remain <= 10 && whole !== this.lastWholeSec) {
-      this.lastWholeSec = whole;
-      audio.sfx('timeWarn');
-    }
-    if (remain <= 0) {
-      this.state = 'timeup';
-      this.stateT = 0;
-      music.stop();
-      audio.sfx('collapse');
-      return;
-    }
-
     // 障害物・レーザーは停止中も動かし続ける
     this.updateObs(dt);
     this.updateLasers(dt);
@@ -456,6 +451,7 @@ export class Stage implements Scene {
     // 環境と速度（ダッシュ=速いが熱い / ブレーキ=遅いが涼しく安全）
     const env = this.env(this.px, this.pz);
     const wasDashing = this.dashing;
+    const wasBraking = this.braking;
     this.dashing = moveX > 0.35 && this.stumbleT <= 0;
     this.braking = moveX < -0.35;
     let targetV = env.maxV;
@@ -467,6 +463,11 @@ export class Stage implements Scene {
     } else if (this.braking) {
       targetV = Math.min(targetV, BRAKE_V);
     }
+    if (this.dashing !== wasDashing) audio.setDashLoop(this.dashing);
+    if (this.braking !== wasBraking) audio.setBrakeLoop(this.braking);
+    // 加減速の体の傾き（ダッシュ=前傾/右回り、ブレーキ=後傾/左回り）を滑らかに追従
+    const tiltTarget = this.dashing ? 0.17 : this.braking ? -0.13 : 0;
+    this.tiltAngle += (tiltTarget - this.tiltAngle) * Math.min(1, dt * 10);
     if (this.v < targetV) this.v = Math.min(targetV, this.v + (this.dashing ? ACCEL * 1.5 : ACCEL) * dt);
     else this.v = Math.max(targetV, this.v - (this.braking ? BRAKE_DECEL : DECEL) * dt);
     if (this.stumbleT > 0) this.v = Math.min(this.v, env.maxV * 0.75);
@@ -481,6 +482,7 @@ export class Stage implements Scene {
       this.stateT = 0;
       music.stop();
       audio.sfx('collapse');
+      this.quip(i18n.t('q.heatMax'), true);
       return;
     }
     if (this.heat > 75) {
@@ -529,6 +531,8 @@ export class Stage implements Scene {
       }
     } else if (jumpIn && this.stumbleT <= 0) {
       this.airT = 0;
+      // ジャンプ連打で万能回避にならないよう、踏切りで少し速度を削る
+      this.v *= 0.94;
       audio.sfx('jump');
     }
 
@@ -580,14 +584,26 @@ export class Stage implements Scene {
   private wasMist = false;
 
   private updateGoal(dt: number): void {
-    this.animT += dt * (this.v / 7);
-    this.px += this.v * dt;
-    this.v = Math.max(V_MIN, this.v - 3 * dt);
-    if (this.stateT > 2.2) {
+    const restStart = 1.3;
+    if (this.stateT < restStart) {
+      // ゴール直後は惰性で少し進みつつ減速→バンザイ
+      this.animT += dt * (this.v / 7);
+      this.px += this.v * dt;
+      this.v = Math.max(V_MIN, this.v - 6 * dt);
+    } else {
+      // 膝をついて座り込み、湯気を上げてしばし休む
+      this.v = 0;
+      if (this.stateT - dt <= restStart) this.quip(this.ctx.i18n.t('q.restPant'), true);
+      if (Math.random() < dt * 5) {
+        const bx = PSX + (Math.random() - 0.5) * 6;
+        this.spawnP(bx, zToY(this.pz) - 20, (Math.random() - 0.5) * 4, -18 - Math.random() * 10, 1.0, 'rgba(230,230,235,0.6)', 2, -6);
+      }
+    }
+    if (this.stateT > restStart + 2.1) {
       const t = Math.round(this.timer * 100) / 100;
-      const rank = calcRank(t, this.course.par);
+      const stars = calcStars(t, this.course.par);
       const isBest = this.ctx.save.recordClear(this.day - 1, t);
-      this.ctx.gotoResult(this.day, t, rank, isBest);
+      this.ctx.gotoResult(this.day, t, stars, isBest);
     }
   }
 
@@ -674,7 +690,12 @@ export class Stage implements Scene {
       if (Math.abs(o.curZ - this.pz) > 0.16) continue;
       dangerAhead = true;
       const jumpable =
-        o.type === 'cone' || o.type === 'planter' || o.type === 'coolbox' || o.type === 'tumbleweed' || o.type === 'dune';
+        o.type === 'cone' ||
+        o.type === 'planter' ||
+        o.type === 'coolbox' ||
+        o.type === 'tumbleweed' ||
+        o.type === 'dune' ||
+        o.type === 'brick';
       if (jumpable && dx < this.v * 0.32 && this.airT < 0) {
         jump = true;
       } else if (!jumpable) {
@@ -726,6 +747,23 @@ export class Stage implements Scene {
         case 'cart': {
           o.curZ = o.baseZ + Math.sin(this.time * (o.v ?? 0.8) + o.phase) * 0.42;
           o.curZ = Math.min(0.95, Math.max(0.05, o.curZ));
+          break;
+        }
+        case 'kickboard': {
+          // 迷惑にーちゃん: 通常のpedより速いサインカーブで縦横無尽に動く
+          o.curX += (o.v ?? 3.4) * dt;
+          o.curZ = o.baseZ + Math.sin(this.time * 3.6 + o.phase) * (o.zAmp ?? 0.4);
+          o.curZ = Math.min(0.95, Math.max(0.05, o.curZ));
+          break;
+        }
+        case 'brick': {
+          // ゆっくり回転しながらこちらへ向かってくる(ゼビウス バキュラ風)
+          o.curX -= (o.v ?? 2.6) * dt;
+          o.curZ = o.baseZ + Math.sin(this.time * 1.4 + o.phase) * 0.06;
+          if (!this.firstBrick && dist < 30) {
+            this.firstBrick = true;
+            this.quip(this.ctx.i18n.t('q.brick'));
+          }
           break;
         }
       }
@@ -863,6 +901,15 @@ export class Stage implements Scene {
             }
           }
           break;
+        case 'kickboard':
+          if (Math.abs(dx) < 1.1 && dz < 0.13) {
+            this.damage(12);
+            this.quip(this.ctx.i18n.t('q.kickboard'));
+          }
+          break;
+        case 'brick':
+          if (!jumpClear && Math.abs(dx) < 0.9 && dz < 0.13) this.damage(11);
+          break;
       }
     }
   }
@@ -886,7 +933,7 @@ export class Stage implements Scene {
     g.save();
     g.translate(shakeX, shakeY);
 
-    this.bg.drawBack(g, camX, this.time);
+    this.bg.drawBack(g, camX, this.time, this.computeSunTarget(camX));
     this.bg.drawFloor(g, camX);
 
     // ゾーン（砂→照り返し→ミスト→影の順）
@@ -1041,6 +1088,8 @@ export class Stage implements Scene {
     const yFar = zToY(0.02);
     const yNear = zToY(0.98);
     if (!front) {
+      // ゴール地点にそびえる「パシフィコ横浜」風ドーム（遠くからでも見える目印）
+      blit(g, this.artDome, sxFar, yFar + 4, 0.62);
       blit(g, this.artPillar, sxFar, yFar, 0.72);
       // 横断幕（奥→手前へ斜めの帯）
       const topFar = yFar - 58 * 0.72;
@@ -1067,6 +1116,25 @@ export class Stage implements Scene {
     } else {
       blit(g, this.artPillar, sxNear, yNear + 4, 1);
     }
+  }
+
+  /** 発射前は太陽が着弾地点の真上へ移動して来る演出のターゲットを計算 */
+  private computeSunTarget(camX: number): { x: number; y: number; blend: number } | undefined {
+    let best: { x: number; y: number; blend: number } | undefined;
+    for (let i = 0; i < this.lasers.length; i++) {
+      const rt = this.lasers[i];
+      if (rt.state !== 'warn' && rt.state !== 'fire') continue;
+      const def = this.course.lasers[i];
+      const zMid = (def.z0 + def.z1) / 2;
+      const x = Math.round(sxOf(def.x, camX, Math.min(0.35, zMid)));
+      let blend: number;
+      if (rt.state === 'warn') blend = Math.min(1, rt.t / 1.3);
+      else blend = 1;
+      const target = { x, y: 16, blend };
+      // fire中を優先、なければ最も進行したwarnを採用
+      if (!best || rt.state === 'fire' || blend > best.blend) best = target;
+    }
+    return best;
   }
 
   private drawLaserTelegraphs(g: CanvasRenderingContext2D, camX: number): void {
@@ -1118,12 +1186,21 @@ export class Stage implements Scene {
       const w = sx1 - sx0;
       const fade = rt.t < 0.08 ? rt.t / 0.08 : rt.t > dur - 0.15 ? Math.max(0, (dur - rt.t) / 0.15) : 1;
       const yBot = Math.round(zToY(zHi));
-      g.globalAlpha = 0.85 * fade;
+      // 半透明のメッシュ状ビーム（背景が透けて見えるよう、市松状に間引いて塗る）
+      const meshOffset = Math.floor(this.time * 40);
+      g.globalAlpha = 0.5 * fade;
       g.fillStyle = '#ff8c42';
-      g.fillRect(sx0 - 3, 0, w + 6, yBot);
-      g.globalAlpha = 1 * fade;
+      for (let y = 0; y < yBot; y += 2) {
+        const xOff = (y + meshOffset) % 4 < 2 ? 0 : 1;
+        g.fillRect(sx0 - 3 + xOff, y, w + 6, 1);
+      }
+      g.globalAlpha = 0.62 * fade;
       g.fillStyle = '#fff6c8';
-      g.fillRect(sx0 + Math.round(w * 0.18), 0, Math.round(w * 0.64), yBot);
+      const coreX = sx0 + Math.round(w * 0.18);
+      const coreW = Math.round(w * 0.64);
+      for (let y = 0; y < yBot; y += 2) {
+        g.fillRect(coreX, y, coreW, 1);
+      }
       g.globalAlpha = 1;
       // 着弾の白熱
       const y0 = Math.round(zToY(zLo));
@@ -1248,6 +1325,28 @@ export class Stage implements Scene {
           });
           break;
         }
+        case 'brick': {
+          const f = S.brick[Math.floor(this.time * 5 + o.phase * 3) % 4];
+          const bob = Math.sin(this.time * 2 + o.phase) * 3;
+          items.push({
+            z: o.curZ,
+            fn: () => {
+              this.drawShadow(g, sx, sy, 9 * sc * SPR, 'rgba(34,24,51,0.25)');
+              blit(g, f, sx, sy - 8 * sc * SPR - bob, sc * SPR);
+            },
+          });
+          break;
+        }
+        case 'kickboard': {
+          items.push({
+            z: o.curZ,
+            fn: () => {
+              this.drawShadow(g, sx, sy, 15 * sc * SPR);
+              blit(g, S.kickboard, sx, sy, sc * SPR);
+            },
+          });
+          break;
+        }
         case 'cardman': {
           items.push({
             z: o.curZ,
@@ -1319,8 +1418,8 @@ export class Stage implements Scene {
     if (this.state === 'dead') {
       const i = Math.min(2, Math.floor(this.stateT / 0.35));
       spr = S.collapse[i];
-    } else if (this.state === 'timeup') {
-      spr = S.collapse[Math.min(1, Math.floor(this.stateT / 0.4))];
+    } else if (this.state === 'goal' && this.stateT > 1.3) {
+      spr = S.restKneel;
     } else if (this.state === 'goal' && this.stateT > 0.4) {
       spr = S.win;
     } else if (this.storeT > 0) {
@@ -1336,15 +1435,28 @@ export class Stage implements Scene {
     } else {
       spr = S.run[Math.floor(this.animT * 10) % 6];
     }
-    blit(g, spr, PSX, sy - jy, sc * SPR);
+    // ヒートゲージ演出: 足元から頭へ赤みがせり上がる（0=白いまま/100=全身真っ赤）
+    // 加減速の傾き: 足元(接地点)を軸に回転させる
+    const anchorY = sy;
+    g.save();
+    g.translate(PSX, anchorY);
+    g.rotate(this.tiltAngle);
+    g.translate(-PSX, -anchorY);
+    blitHeatTint(g, spr, PSX, sy - jy, sc * SPR, this.heat / 100);
+    g.restore();
 
     // 高速オーラ（ダッシュ中の残像）
     if (this.dashing && this.v > 8 && this.state === 'play' && this.airT < 0) {
+      g.save();
+      g.translate(PSX, anchorY);
+      g.rotate(this.tiltAngle);
+      g.translate(-PSX, -anchorY);
       g.globalAlpha = 0.22;
       blit(g, spr, PSX - 8, sy - jy, sc * SPR);
       g.globalAlpha = 0.1;
       blit(g, spr, PSX - 15, sy - jy, sc * SPR);
       g.globalAlpha = 1;
+      g.restore();
     }
   }
 
@@ -1383,19 +1495,14 @@ export class Stage implements Scene {
     const rowY = HUD_TOP + 5;
     // DAY
     bitmapText(g, `DAY${this.day}`, 5, rowY, { color: '#ffd94d' });
-    // TIME
+    // TIME（制限は無く、クリア時の★評価に使うだけの計測用）
     bitmapText(g, 'TIME', 44, rowY, { color: '#8f86b8' });
     bitmapText(g, fmtTime(this.timer), 72, rowY, { color: '#f5f1e8' });
-    // LIMIT
-    const remain = Math.max(0, this.course.limit - this.timer);
-    const limCol = remain <= 10 ? (Math.floor(this.time * 4) % 2 === 0 ? '#ff5a32' : '#f5f1e8') : '#8f86b8';
-    bitmapText(g, 'LIMIT', 140, rowY, { color: '#8f86b8' });
-    bitmapText(g, `${Math.ceil(remain)}`, 174, rowY, { color: limCol });
 
-    // HEATゲージ（0=快適 → 100=熱中症。上がるほど危険）
-    bitmapText(g, 'HEAT', 205, rowY, { color: '#8f86b8' });
-    const gx = 233;
-    const gw = 62;
+    // HEATゲージ（0=快適 → 100=熱中症。上がるほど危険。時間制限の代わりに唯一の敗北条件）
+    bitmapText(g, 'HEAT', 150, rowY, { color: '#8f86b8' });
+    const gx = 178;
+    const gw = 92;
     g.fillStyle = '#221833';
     g.fillRect(gx - 1, rowY - 1, gw + 2, 9);
     // 涼しい下地
@@ -1421,9 +1528,9 @@ export class Stage implements Scene {
     g.fillRect(gx + Math.round(gw * 0.8), rowY - 1, 1, 2);
 
     // AREA進行バー
-    bitmapText(g, 'AREA', 305, rowY, { color: '#8f86b8' });
-    const ax = 333;
-    const aw = 100;
+    bitmapText(g, 'AREA', 285, rowY, { color: '#8f86b8' });
+    const ax = 313;
+    const aw = 120;
     g.fillStyle = '#221833';
     g.fillRect(ax - 1, rowY + 1, aw + 2, 5);
     g.fillStyle = '#2b8f92';
@@ -1504,14 +1611,13 @@ export class Stage implements Scene {
       g.globalAlpha = Math.min(0.9, (9.5 - this.timer) / 1.5, (this.timer - 6.5) / 0.5);
       text(g, i18n.t('hint.dash'), VW / 2, 36, { size: 10, color: '#ffd94d', align: 'center', outline: '#221833' });
       g.globalAlpha = 1;
-    } else if (this.state === 'dead' || this.state === 'timeup') {
+    } else if (this.state === 'dead') {
       if (this.stateT > 0.8) {
         const a = Math.min(0.8, (this.stateT - 0.8) * 2);
         g.fillStyle = `rgba(60,16,20,${a * 0.7})`;
         g.fillRect(0, 0, VW, VH);
-        const isTime = this.state === 'timeup';
-        text(g, i18n.t(isTime ? 'go.timeup' : 'go.title'), VW / 2, 92, { size: 12, color: '#ff8a70', align: 'center', scale: 2, bold: true });
-        text(g, i18n.t(isTime ? 'go.timeupSub' : 'go.sub'), VW / 2, 128, { size: 10, color: '#f5f1e8', align: 'center' });
+        text(g, i18n.t('go.title'), VW / 2, 92, { size: 12, color: '#ff8a70', align: 'center', scale: 2, bold: true });
+        text(g, i18n.t('go.sub'), VW / 2, 128, { size: 10, color: '#f5f1e8', align: 'center' });
         if (this.stateT > 1.2) {
           const blink = Math.floor(this.time * 2) % 2 === 0;
           text(g, i18n.t('go.retry'), VW / 2, 168, { size: 12, color: blink ? '#ffd94d' : '#c8b830', align: 'center', bold: true });

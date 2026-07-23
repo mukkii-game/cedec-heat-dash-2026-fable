@@ -25,15 +25,17 @@ export type ObType =
   | 'tumbleweed'
   | 'dune'
   | 'drink'
-  | 'energy';
+  | 'energy'
+  | 'brick'
+  | 'kickboard';
 
 export interface ObDef {
   type: ObType;
   x: number;
   z: number;
-  /** ped: 移動速度(m/s, 正=前方へ)。cart: 縦断速度 */
+  /** ped: 移動速度(m/s, 正=前方へ)。cart/kickboard: sin振動の速さ。brick: 接近速度 */
   v?: number;
-  /** ped: z振動の振幅 */
+  /** ped/kickboard: z振動の振幅 */
   zAmp?: number;
   /** ped: 見た目バリエーション */
   variant?: number;
@@ -65,10 +67,8 @@ export type WallDecor =
 export interface Course {
   day: 1 | 2 | 3;
   length: number;
-  /** 制限時間(s) */
-  limit: number;
-  /** ランク基準 */
-  par: { s: number; a: number; b: number };
+  /** ★評価の基準タイム(s)。s以下=★3、a以下=★2、それより遅くてもクリアなら★1 */
+  par: { s: number; a: number };
   zones: Zone[];
   obs: ObDef[];
   lasers: LaserDef[];
@@ -85,8 +85,7 @@ export interface Course {
 export const DAY1: Course = {
   day: 1,
   length: 290,
-  limit: 60,
-  par: { s: 28, a: 33, b: 42 },
+  par: { s: 28, a: 33 },
   zones: [
     // S0: 最初の日陰（奥側）— 「日陰=青くて気持ちいい」を学ぶ
     { kind: 'shade', x0: 22, x1: 42, z0: 0, z1: 0.5, shear: -6 },
@@ -109,6 +108,9 @@ export const DAY1: Course = {
     { type: 'ped', x: 86, z: 0.28, v: 0.5, variant: 1 },
     { type: 'planter', x: 76, z: 0.65 },
     { type: 'drink', x: 94, z: 0.85 },
+    // 仲良く横並びで歩くカップル（2人分＝奥まで塞ぐので迂回幅が要る）
+    { type: 'ped', x: 104, z: 0.42, v: -0.3, variant: 0 },
+    { type: 'ped', x: 105, z: 0.58, v: -0.3, variant: 2 },
     // S2: 人の波（上下にゆっくり巡回=読んで抜ける）
     { type: 'ped', x: 120, z: 0.55, v: -0.8, variant: 2, zAmp: 0.18 },
     { type: 'ped', x: 128, z: 0.78, v: 0.4, variant: 3 },
@@ -122,6 +124,7 @@ export const DAY1: Course = {
     // S3: レーザー区間（回避手段は影/減速/奥）
     { type: 'ped', x: 197, z: 0.8, v: 0.3, variant: 3 },
     { type: 'ped', x: 210, z: 0.6, v: -0.6, variant: 1, zAmp: 0.16 },
+    { type: 'kickboard', x: 222, z: 0.5, zAmp: 0.32 },
     // S4: 分岐 — 日向(奥)は障害物2つ、日陰(手前)は遅いがクリーン
     { type: 'cardman', x: 236, z: 0.48 },
     { type: 'planter', x: 252, z: 0.2 },
@@ -160,8 +163,7 @@ export const DAY1: Course = {
 export const DAY2: Course = {
   day: 2,
   length: 400,
-  limit: 75,
-  par: { s: 38, a: 45, b: 58 },
+  par: { s: 38, a: 45 },
   zones: [
     // S0: 朝でも既に暑い。短い日陰
     { kind: 'shade', x0: 16, x1: 36, z0: 0, z1: 0.4, shear: -6 },
@@ -194,12 +196,17 @@ export const DAY2: Course = {
     { type: 'suitcase', x: 120, z: 0.55, v: -0.4, variant: 3 },
     { type: 'cardman', x: 130, z: 0.32 },
     { type: 'drink', x: 100, z: 0.08 },
+    // 買い物帰りの3人組（横並びで塞ぐ集団。z幅が広く一気には抜けられない）
+    { type: 'ped', x: 140, z: 0.28, v: -0.3, variant: 1 },
+    { type: 'ped', x: 141, z: 0.46, v: -0.3, variant: 3 },
+    { type: 'ped', x: 142, z: 0.64, v: -0.3, variant: 0 },
     // S2: 照り返し直線。中央が速いが熱い。缶は照り返しの中
     { type: 'ped', x: 152, z: 0.12, v: -0.5, variant: 1 },
     { type: 'planter', x: 164, z: 0.85 },
     { type: 'energy', x: 186, z: 0.5 },
     { type: 'ped', x: 196, z: 0.88, v: 0.4, variant: 0 },
     { type: 'gull', x: 176, z: 0.4 },
+    { type: 'brick', x: 210, z: 0.55, v: 2.4 },
     // S3: 砂の縫い目
     { type: 'dune', x: 228, z: 0.35 },
     { type: 'coolbox', x: 240, z: 0.9 },
@@ -207,12 +214,14 @@ export const DAY2: Course = {
     { type: 'ped', x: 264, z: 0.6, v: -0.4, variant: 3, zAmp: 0.18 },
     { type: 'drink', x: 274, z: 0.15 },
     { type: 'gull', x: 288, z: 0.3 },
-    // S4: レーザー連続（影の島か速度調整で抜ける）
+    // S4: レーザー連続（影の島か速度調整で抜ける。新ギミックは詰め込まない）
     { type: 'ped', x: 316, z: 0.7, v: 0.3, variant: 2 },
     { type: 'tumbleweed', x: 348, z: 0.5 },
-    // S5
+    // S5: レーザー地帯を抜けた後の開けた直線でもうひと押し
     { type: 'cone', x: 372, z: 0.45 },
-    { type: 'drink', x: 380, z: 0.8 },
+    { type: 'brick', x: 380, z: 0.35, v: 2.8 },
+    { type: 'drink', x: 384, z: 0.8 },
+    { type: 'kickboard', x: 392, z: 0.55, zAmp: 0.3, v: 3.4 },
   ],
   lasers: [
     // 手前側→奥側と交互に落ちる。影の島 or 速度計画で回避
@@ -251,8 +260,7 @@ export const DAY2: Course = {
 export const DAY3: Course = {
   day: 3,
   length: 500,
-  limit: 90,
-  par: { s: 44, a: 52, b: 68 },
+  par: { s: 44, a: 52 },
   zones: [
     // 砂のフィールド（縫って走る）
     { kind: 'sand', x0: 30, x1: 62, z0: 0.45, z1: 1 },
@@ -278,23 +286,35 @@ export const DAY3: Course = {
     { type: 'tumbleweed', x: 70, z: 0.6 },
     { type: 'ped', x: 90, z: 0.75, v: -0.4, variant: 0, zAmp: 0.15 },
     { type: 'dune', x: 116, z: 0.3 },
+    { type: 'brick', x: 124, z: 0.35, v: 2.8 },
     { type: 'gull', x: 136, z: 0.5 },
     { type: 'tumbleweed', x: 158, z: 0.2 },
     { type: 'coolbox', x: 176, z: 0.7 },
     { type: 'drink', x: 190, z: 0.15 },
+    // ここから先(190-214)はスイープ日射レーザーの通り道。新ギミックは詰め込まない
     { type: 'dune', x: 222, z: 0.8 },
     { type: 'tumbleweed', x: 236, z: 0.45 },
     { type: 'suitcase', x: 258, z: 0.15, v: -0.3, variant: 1 },
+    // 砂漠を渡る旅行者の集団（3人、影を求めて固まって歩く）
+    { type: 'ped', x: 270, z: 0.32, v: -0.25, variant: 1 },
+    { type: 'ped', x: 271, z: 0.5, v: -0.25, variant: 0 },
+    { type: 'ped', x: 272, z: 0.68, v: -0.25, variant: 3 },
     { type: 'ped', x: 282, z: 0.35, v: 0.4, variant: 2, zAmp: 0.2 },
     { type: 'dune', x: 296, z: 0.2 },
     { type: 'gull', x: 316, z: 0.7 },
     { type: 'drink', x: 330, z: 0.85 },
+    { type: 'brick', x: 338, z: 0.4, v: 3.4 },
     { type: 'cart', x: 346, z: 0.5, v: 0.9 },
+    { type: 'kickboard', x: 360, z: 0.6, zAmp: 0.42, v: 4.2 },
     { type: 'dune', x: 372, z: 0.7 },
+    { type: 'brick', x: 380, z: 0.4, v: 3.4 },
     { type: 'tumbleweed', x: 388, z: 0.35 },
+    { type: 'ped', x: 398, z: 0.22, v: -0.2, variant: 0 },
+    { type: 'ped', x: 399, z: 0.4, v: -0.2, variant: 2 },
+    // ここから先(408-434)はスイープ日射レーザーの通り道。新ギミックは詰め込まない
     { type: 'cardman', x: 414, z: 0.55 },
     { type: 'energy', x: 428, z: 0.1 },
-    // 熱走ラストラン: 障害は薄く、ヒートとの勝負
+    // 熱走ラストラン: 障害は薄く、ヒートとの勝負（ここは意図的に密度を抑える）
     { type: 'dune', x: 452, z: 0.5 },
     { type: 'drink', x: 466, z: 0.25 },
     { type: 'tumbleweed', x: 480, z: 0.6 },

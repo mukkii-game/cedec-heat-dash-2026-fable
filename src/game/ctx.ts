@@ -28,14 +28,14 @@ export interface Ctx {
   gotoTitle(): void;
   gotoOp(): void;
   gotoStage(day: number, fullRun: boolean): void;
-  gotoResult(day: number, time: number, rank: string, isBest: boolean): void;
+  gotoResult(day: number, time: number, stars: number, isBest: boolean): void;
   gotoEd(): void;
   toggleMute(): void;
 }
 
-export function calcRank(time: number, par: { s: number; a: number; b: number }): string {
-  if (time <= par.s) return 'S';
-  if (time <= par.a) return 'A';
-  if (time <= par.b) return 'B';
-  return 'C';
+/** クリアタイムから★1〜3を算出。時間制限は無く、遅くてもクリアなら最低★1 */
+export function calcStars(time: number, par: { s: number; a: number }): number {
+  if (time <= par.s) return 3;
+  if (time <= par.a) return 2;
+  return 1;
 }

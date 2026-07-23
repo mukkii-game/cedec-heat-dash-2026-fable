@@ -82,10 +82,8 @@ export class Input {
       case 'Space':
       case 'KeyZ':
       case 'KeyX':
-        this.jumpQ = true;
-        this.confirmQ = true;
-        break;
       case 'Enter':
+        this.jumpQ = true;
         this.confirmQ = true;
         break;
       case 'Escape':
@@ -154,6 +152,10 @@ export class Input {
       role = 'padAcc';
     } else if (this.video.mode === 'portrait' && this.hit(this.padBrk, cc.x, cc.y)) {
       role = 'padBrk';
+    } else if (e.pointerType === 'mouse') {
+      // マウスは移動キーが別にあるので、クリックは常にジャンプ扱い
+      role = 'jump';
+      this.jumpQ = true;
     } else if (e.clientX < window.innerWidth * 0.45) {
       role = 'move';
     } else {

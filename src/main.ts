@@ -20,8 +20,9 @@ async function boot(): Promise<void> {
   const i18n = new I18n(save.data.lang);
   const audio = new AudioSys(save.data.mute);
   const music = new MusicPlayer(audio);
-  // PixelMplus10（M+ライセンス、THIRD_PARTY_ASSETS.md参照）。失敗時はシステムフォントへフォールバック
-  await loadPixelFont(new URL('./assets/PixelMplus10-Regular.ttf', import.meta.url).href);
+  // Yusei Magic（OFLライセンス、THIRD_PARTY_ASSETS.md参照）。太く丸い手書き風で
+  // ドット絵UIでも視認性が高い。失敗時はシステムフォントへフォールバック
+  await loadPixelFont(new URL('./assets/YuseiMagic-Regular.ttf', import.meta.url).href);
   const sprites = buildSprites();
 
   let scene: Scene;
@@ -47,8 +48,8 @@ async function boot(): Promise<void> {
       if (day === 1) ctx.runTimes = [0, 0, 0];
       setScene(new Stage(ctx, day));
     },
-    gotoResult(day, time, rank, isBest) {
-      setScene(new ResultScene(ctx, day, time, rank, isBest));
+    gotoResult(day, time, stars, isBest) {
+      setScene(new ResultScene(ctx, day, time, stars, isBest));
     },
     gotoEd() {
       setScene(new EdScene(ctx));

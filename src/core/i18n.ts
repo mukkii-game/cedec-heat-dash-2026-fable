@@ -6,6 +6,10 @@ const STR: Record<string, [string, string]> = {
   // タイトル
   'title.sub': ['〜徒歩5分・体感30分〜', '"A 5-min walk that feels like 30"'],
   'title.press': ['タップ / SPACE でスタート', 'TAP / SPACE TO START'],
+  'title.controls': [
+    '↑↓/WSで移動 ←→/ADで加減速 SPACE/ENTER/クリックでジャンプ',
+    '↑↓/WS MOVE  ←→/AD SPEED  SPACE/ENTER/CLICK JUMP',
+  ],
   'title.start': ['さいしょから', 'START'],
   'title.day': ['日をえらぶ', 'DAY SELECT'],
   'title.lang': ['LANG: 日本語', 'LANG: ENGLISH'],
@@ -56,6 +60,10 @@ const STR: Record<string, [string, string]> = {
   'q.card': ['どうも〜（名刺交換）', 'Oh hi— (card exchange)'],
   'q.gull': ['カモメ！？', 'Seagull?!'],
   'q.sand': ['砂!?', 'Sand?!'],
+  'q.brick': ['赤レンガ…？', 'A brick...? Why?'],
+  'q.heatMax': ['アヂー！！', 'IT\'S HOT!!'],
+  'q.restPant': ['はぁ…はぁ…生きてる…', 'Huff... puff... I\'m alive...'],
+  'q.kickboard': ['迷惑にーちゃん！', 'That guy is a menace!'],
   'q.mirage': ['日陰が消えた！？', 'The shade... vanished?!'],
   'q.goal1': ['着いた！ 会場すずしい！！', 'Made it! Sweet AC!!'],
   'q.goal2': ['セッションに間に合った…！', 'Made it to the session...!'],
@@ -66,21 +74,19 @@ const STR: Record<string, [string, string]> = {
   'hud.time': ['TIME', 'TIME'],
   'hud.heat': ['HEAT', 'HEAT'],
   'hud.area': ['AREA', 'AREA'],
-  'hud.limit': ['LIMIT', 'LIMIT'],
 
   // リザルト
   'res.clear': ['とうちゃく！', 'ARRIVED!'],
   'res.time': ['タイム', 'TIME'],
   'res.best': ['ベスト', 'BEST'],
   'res.newRecord': ['NEW RECORD!', 'NEW RECORD!'],
-  'res.rank': ['ランク', 'RANK'],
+  'res.rank': ['ひょうか', 'RATING'],
   'res.next': ['つぎの日へ', 'NEXT DAY'],
   'res.retry': ['リトライ (R)', 'RETRY (R)'],
   'res.toTitle': ['タイトルへ', 'TITLE'],
-  'res.rankS': ['プロランナー', 'PRO RUNNER'],
-  'res.rankA': ['さすが健脚', 'SPEED WALKER'],
-  'res.rankB': ['よい汗', 'GOOD HUSTLE'],
-  'res.rankC': ['とうちゃくが優勝', 'ARRIVING IS WINNING'],
+  'res.star3': ['プロランナー', 'PRO RUNNER'],
+  'res.star2': ['さすが健脚', 'SPEED WALKER'],
+  'res.star1': ['とうちゃくが優勝', 'ARRIVING IS WINNING'],
 
   // 総合リザルト
   'total.title': ['3日間 総合リザルト', '3-DAY FINAL RESULT'],
@@ -90,8 +96,6 @@ const STR: Record<string, [string, string]> = {
   // ゲームオーバー
   'go.title': ['熱中症でリタイア…', 'HEAT KO...'],
   'go.sub': ['水分、大事。', 'Hydrate or diedrate.'],
-  'go.timeup': ['タイムアップ…', 'TIME UP...'],
-  'go.timeupSub': ['基調講演が始まってしまった。', 'The keynote has started without you.'],
   'go.retry': ['リトライ (R)', 'RETRY (R)'],
 
   // ED

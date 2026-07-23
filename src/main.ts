@@ -20,7 +20,8 @@ async function boot(): Promise<void> {
   const i18n = new I18n(save.data.lang);
   const audio = new AudioSys(save.data.mute);
   const music = new MusicPlayer(audio);
-  await loadPixelFont(null); // 同梱フォントは後段フェーズで導入
+  // PixelMplus10（M+ライセンス、THIRD_PARTY_ASSETS.md参照）。失敗時はシステムフォントへフォールバック
+  await loadPixelFont(new URL('./assets/PixelMplus10-Regular.ttf', import.meta.url).href);
   const sprites = buildSprites();
 
   let scene: Scene;

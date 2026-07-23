@@ -3,8 +3,9 @@
 import { VW, VH } from '../core/video';
 import { bitmapText, text } from '../core/font';
 import { fmtTime } from '../core/i18n';
-import { Background, THEMES } from '../gfx/bg';
+import { Background, THEMES, zToY, scaleAt, PSX } from '../gfx/bg';
 import { blit } from '../gfx/pix';
+import { pixCircle, makeStation } from '../gfx/wallart';
 import { COURSES } from './course';
 import type { Ctx, Scene } from './ctx';
 
@@ -165,12 +166,30 @@ export class TitleScene implements Scene {
     const { i18n, save } = this.ctx;
     this.bg.drawBack(g, this.camX, this.t);
     this.bg.drawFloor(g, this.camX);
+
+    // アトラクト: 走り続けるミナト
+    const S = this.ctx.sprites.player;
+    const dz = 0.62 + Math.sin(this.t * 0.7) * 0.08;
+    const dy = zToY(dz);
+    const dsc = scaleAt(dz) * 1.45;
+    g.fillStyle = 'rgba(34,24,51,0.35)';
+    g.fillRect(Math.round(PSX - 8), Math.round(dy) - 1, 17, 2);
+    blit(g, S.run[Math.floor(this.t * 10) % 6], PSX, dy, dsc);
+    // 足元の土埃
+    g.fillStyle = '#cbb694';
+    for (let i = 0; i < 3; i++) {
+      const n = (this.t * 7 + i * 1.7) % 2;
+      if (n < 1) g.fillRect(Math.round(PSX - 10 - n * 16), Math.round(dy - 2 - n * 3), 1, 1);
+    }
+
     // 手前に薄暮ビネット
     g.fillStyle = 'rgba(20,16,31,0.3)';
     g.fillRect(0, 0, VW, VH);
 
-    // ロゴ
+    // ロゴ（背後に太陽）
     const ly = 42 + Math.sin(this.t * 1.5) * 2;
+    pixCircle(g, VW / 2, Math.round(ly + 34), 46, 'rgba(255,217,77,0.25)');
+    pixCircle(g, VW / 2, Math.round(ly + 34), 38, 'rgba(255,180,60,0.3)');
     bitmapText(g, 'CEDEC', VW / 2, ly, { color: '#3ec6c0', align: 'center', scale: 3, shadow: '#221833' });
     bitmapText(g, 'HEAT DASH', VW / 2, ly + 26, { color: '#ffd94d', align: 'center', scale: 4, shadow: '#b03042' });
     bitmapText(g, '2026', VW / 2, ly + 62, { color: '#f5f1e8', align: 'center', scale: 2, shadow: '#221833' });
@@ -285,18 +304,29 @@ export class OpScene implements Scene {
       bitmapText(g, 'CEDEC 2026', VW / 2, 84, { color: '#221833', align: 'center', scale: 2 });
       bitmapText(g, 'JULY 22-24', VW / 2, 106, { color: '#2e4a7a', align: 'center' });
     } else if (this.panel === 1) {
-      // 白飛びする出口
-      g.fillStyle = '#fff6c8';
-      g.fillRect(190, 50, 100, 110);
+      // 駅出口。外は白飛びする灼熱
+      blit(g, makeStation(), VW / 2, 160, 1.8);
+      g.fillStyle = 'rgba(255,246,200,0.9)';
+      g.fillRect(212, 74, 56, 82);
       g.fillStyle = '#ffd94d';
-      g.fillRect(205, 50, 70, 110);
+      g.fillRect(226, 74, 28, 82);
+      pixCircle(g, 240, 60, 14, '#fff6c8');
+      pixCircle(g, 240, 60, 10, '#ffd94d');
       const spr = this.ctx.sprites.player.idle;
-      blit(g, spr, VW / 2, 160, 1.4);
+      blit(g, spr, 180, 158, 1.4);
     } else {
-      const spr = this.ctx.sprites.player.run[2];
-      blit(g, spr, VW / 2, 130, 1.6);
-      bitmapText(g, '5 MIN', VW / 2 - 70, 60, { color: '#3ec6c0', align: 'center', scale: 2 });
-      bitmapText(g, '30 MIN?!', VW / 2 + 70, 60, { color: '#ff5a32', align: 'center', scale: 2 });
+      // 走り出す
+      const spr = this.ctx.sprites.player.run[Math.floor(this.t * 10) % 6];
+      g.fillStyle = 'rgba(255,255,255,0.25)';
+      for (let i = 0; i < 4; i++) {
+        const y = 90 + i * 18;
+        const x = (i * 133 + Math.floor(this.t * 500)) % VW;
+        g.fillRect(VW - x, y, 30, 1);
+      }
+      blit(g, spr, VW / 2, 132, 1.8);
+      bitmapText(g, '5 MIN', VW / 2 - 80, 56, { color: '#3ec6c0', align: 'center', scale: 2, shadow: '#221833' });
+      text(g, '→', VW / 2, 60, { size: 12, color: '#8f86b8', align: 'center' });
+      bitmapText(g, '30 MIN?!', VW / 2 + 78, 56, { color: '#ff5a32', align: 'center', scale: 2, shadow: '#221833' });
     }
     text(g, i18n.t(`op.${this.panel + 1}`), VW / 2, 178, {
       size: 11,

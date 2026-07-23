@@ -1,0 +1,134 @@
+// 文字列グリッド → Canvas スプライト工場。
+// 全ドット絵はここを通して生成する（ART_DIRECTION.md の規律を集中管理）。
+
+export interface Sprite {
+  c: HTMLCanvasElement;
+  w: number;
+  h: number;
+  /** アンカー（0..1、描画時に w*ox, h*oy が基準点） */
+  ox: number;
+  oy: number;
+}
+
+/** 共通パレット記号。各スプライトはこれを拡張して使う */
+export const BASE_MAP: Record<string, string> = {
+  k: '#221833', // 共通アウトライン（夜紫）
+  w: '#f5f1e8', // オフホワイト
+  s: '#f2c193', // 肌
+  S: '#cf8e62', // 肌影
+};
+
+export function mk(
+  art: string | string[],
+  pal: Record<string, string>,
+  ox = 0.5,
+  oy = 1,
+): Sprite {
+  const rows = typeof art === 'string' ? art.split('|') : art;
+  const h = rows.length;
+  let w = 0;
+  for (const r of rows) w = Math.max(w, r.length);
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, w);
+  c.height = Math.max(1, h);
+  const ctx = c.getContext('2d')!;
+  const map = { ...BASE_MAP, ...pal };
+  for (let y = 0; y < h; y++) {
+    const row = rows[y];
+    for (let x = 0; x < row.length; x++) {
+      const ch = row[x];
+      if (ch === '.' || ch === ' ') continue;
+      const col = map[ch];
+      if (!col) continue;
+      ctx.fillStyle = col;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  return { c, w: c.width, h: c.height, ox, oy };
+}
+
+export function flipX(s: Sprite): Sprite {
+  const c = document.createElement('canvas');
+  c.width = s.w;
+  c.height = s.h;
+  const ctx = c.getContext('2d')!;
+  ctx.imageSmoothingEnabled = false;
+  ctx.translate(s.w, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(s.c, 0, 0);
+  return { c, w: s.w, h: s.h, ox: 1 - s.ox, oy: s.oy };
+}
+
+/** 複数レイヤーを重ねて1枚に合成（同サイズ前提、offsetは省略可） */
+export function compose(
+  layers: { s: Sprite; dx?: number; dy?: number }[],
+  w: number,
+  h: number,
+  ox = 0.5,
+  oy = 1,
+): Sprite {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d')!;
+  ctx.imageSmoothingEnabled = false;
+  for (const l of layers) {
+    ctx.drawImage(l.s.c, l.dx ?? 0, l.dy ?? 0);
+  }
+  return { c, w, h, ox, oy };
+}
+
+/** スプライト描画（アンカー基準、整数スナップ、任意スケール） */
+export function blit(
+  ctx: CanvasRenderingContext2D,
+  s: Sprite,
+  x: number,
+  y: number,
+  scale = 1,
+  alpha = 1,
+): void {
+  const w = Math.max(1, Math.round(s.w * scale));
+  const h = Math.max(1, Math.round(s.h * scale));
+  const dx = Math.round(x - w * s.ox);
+  const dy = Math.round(y - h * s.oy);
+  if (alpha < 1) {
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(s.c, dx, dy, w, h);
+    ctx.globalAlpha = 1;
+  } else {
+    ctx.drawImage(s.c, dx, dy, w, h);
+  }
+}
+
+/** 単純な色置換コピー（モブ量産・日別パレット差し替え用） */
+export function recolor(s: Sprite, from: string[], to: string[]): Sprite {
+  const c = document.createElement('canvas');
+  c.width = s.w;
+  c.height = s.h;
+  const ctx = c.getContext('2d')!;
+  ctx.drawImage(s.c, 0, 0);
+  const img = ctx.getImageData(0, 0, c.width, c.height);
+  const d = img.data;
+  const parse = (hex: string): [number, number, number] => [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ];
+  const fromRgb = from.map(parse);
+  const toRgb = to.map(parse);
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue;
+    for (let j = 0; j < fromRgb.length; j++) {
+      const [r, g, b] = fromRgb[j];
+      if (d[i] === r && d[i + 1] === g && d[i + 2] === b) {
+        const [r2, g2, b2] = toRgb[j];
+        d[i] = r2;
+        d[i + 1] = g2;
+        d[i + 2] = b2;
+        break;
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return { c, w: s.w, h: s.h, ox: s.ox, oy: s.oy };
+}

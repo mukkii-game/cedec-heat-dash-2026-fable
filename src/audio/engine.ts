@@ -35,6 +35,7 @@ export class AudioSys {
   delay!: DelayNode;
   muted = false;
   private lowHpAt = 0;
+  private lowHpStreak = 0;
 
   constructor(muted: boolean) {
     this.muted = muted;
@@ -180,8 +181,9 @@ export class AudioSys {
         this.tone({ f0: 340, f1: 700, t: 0.13, vol: 0.14, type: 'triangle' });
         break;
       case 'dash':
-        this.noise({ t: 0.18, vol: 0.07, hp: 900, lp: 3600 });
-        this.tone({ f0: 220, f1: 480, t: 0.16, vol: 0.09, type: 'sine' });
+        // damageと帯域が被らないよう高域寄りに（ダッシュ直後の被弾で音が団子にならない）
+        this.noise({ t: 0.16, vol: 0.06, hp: 1800, lp: 5200 });
+        this.tone({ f0: 500, f1: 900, t: 0.14, vol: 0.08, type: 'sine' });
         break;
       case 'land':
         this.noise({ t: 0.04, vol: 0.07, lp: 800 });
@@ -236,12 +238,7 @@ export class AudioSys {
         this.tone({ f0: 554, t: 0.1, vol: 0.1, type: 'triangle', when: 0.07 });
         break;
       case 'lowHp': {
-        const now = this.ctx.currentTime;
-        if (now - this.lowHpAt > 1.1) {
-          this.lowHpAt = now;
-          this.tone({ f0: 392, t: 0.08, vol: 0.08, type: 'triangle' });
-          this.tone({ f0: 330, t: 0.1, vol: 0.08, type: 'triangle', when: 0.1 });
-        }
+        this.doLowHp(1.1, 0.08);
         break;
       }
       case 'timeWarn':
@@ -271,5 +268,26 @@ export class AudioSys {
         this.tone({ f0: 440, f1: 110, t: 0.7, vol: 0.15, type: 'triangle' });
         break;
     }
+  }
+
+  private doLowHp(interval: number, vol: number): void {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    if (now - this.lowHpAt > 3) this.lowHpStreak = 0; // 一度クールダウンしたらリセット
+    if (now - this.lowHpAt > interval) {
+      this.lowHpAt = now;
+      this.lowHpStreak++;
+      // 繰り返すほど「慣れ」でわずかに音量を落とし、長時間の高ヒート帯で耳が疲れないようにする
+      const decay = Math.max(0.55, 1 - this.lowHpStreak * 0.03);
+      this.tone({ f0: 392, t: 0.08, vol: vol * decay, type: 'triangle' });
+      this.tone({ f0: 330, t: 0.1, vol: vol * decay, type: 'triangle', when: 0.1 });
+    }
+  }
+
+  /** ヒート値に応じて警告の間隔を早める（危険なほど急かす） */
+  sfxLowHp(heat: number): void {
+    if (heat >= 96) this.doLowHp(0.6, 0.09);
+    else if (heat >= 86) this.doLowHp(1.0, 0.085);
+    else this.doLowHp(1.4, 0.08);
   }
 }

@@ -2,7 +2,7 @@
 // AA禁止: すべて1pxのfillRect/手動プロットで描く。
 
 import type { Sprite } from './pix';
-import { text } from '../core/font';
+import { text, textWidth } from '../core/font';
 
 function cv(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const c = document.createElement('canvas');
@@ -224,14 +224,24 @@ export function makeSign(label: string, icon: 'updown' | 'jump' | 'goal' | 'warn
   const key = `${label}|${icon}`;
   const hit = signCache.get(key);
   if (hit) return hit;
-  const [c, g] = cv(34, 30);
-  const w = icon === 'warn' ? 34 : 30;
+  // warnは文言が長いことがあるため、収まらなければ縮小フォント→それでも
+  // 溢れるなら看板幅そのものを広げる（枠内クリップは絶対にしない）
+  let warnSize = 9;
+  let w = 30;
+  if (icon === 'warn') {
+    w = textWidth(label, warnSize, 1) + 8;
+    if (w > 60) {
+      warnSize = 7;
+      w = Math.max(34, textWidth(label, warnSize, 1) + 8);
+    }
+  }
+  const [c, g] = cv(Math.ceil(w), 30);
   g.fillStyle = OUTLINE;
   g.fillRect(0, 0, w, 18);
   g.fillStyle = icon === 'goal' ? '#e8504b' : icon === 'warn' ? '#ffd94d' : '#2e4a7a';
   g.fillRect(1, 1, w - 2, 16);
   if (icon === 'warn') {
-    text(g, label, w / 2, 4, { size: 9, color: '#221833', align: 'center', bold: true });
+    text(g, label, w / 2, (18 - warnSize) / 2 - 1, { size: warnSize, color: '#221833', align: 'center', bold: true });
     // 縞の縁
     g.fillStyle = '#221833';
     for (let i = 0; i < w; i += 6) {
@@ -249,13 +259,14 @@ export function makeSign(label: string, icon: 'updown' | 'jump' | 'goal' | 'warn
     g.fillRect(18, 10, 6, 2);
     g.fillRect(19, 12, 4, 1);
   } else if (icon !== 'warn') {
-    text(g, label, 15, 4, { size: 8, color: '#f5f1e8', align: 'center' });
+    text(g, label, w / 2, 4, { size: 8, color: '#f5f1e8', align: 'center' });
   }
-  // 脚
+  // 脚（看板中央）
+  const legX = Math.round(w / 2) - 2;
   g.fillStyle = OUTLINE;
-  g.fillRect(13, 18, 4, 12);
+  g.fillRect(legX, 18, 4, 12);
   g.fillStyle = '#8a8fa8';
-  g.fillRect(14, 18, 2, 12);
+  g.fillRect(legX + 1, 18, 2, 12);
   const s = sp(c);
   signCache.set(key, s);
   return s;

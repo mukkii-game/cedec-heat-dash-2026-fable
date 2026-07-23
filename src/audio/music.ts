@@ -446,6 +446,8 @@ export class MusicPlayer {
   private playing = false;
   /** 終盤ブースト（ハイハット増量＋リード1oct上を薄く重ねる） */
   heat = false;
+  /** 日ごとにスネアの質感を変える（1=通常/2=締まった/3=乾いた金属質） */
+  private snareStyle: 1 | 2 | 3 = 1;
 
   constructor(au: AudioSys) {
     this.au = au;
@@ -464,6 +466,7 @@ export class MusicPlayer {
     this.nextTime = c.currentTime + 0.08;
     this.playing = true;
     this.heat = false;
+    this.snareStyle = name === 'day3' ? 3 : name === 'day2' ? 2 : 1;
   }
 
   stop(): void {
@@ -511,8 +514,18 @@ export class MusicPlayer {
       this.au.noise({ t: 0.012, vol: 0.1, when, dest: mg, lp: 2400 });
     }
     if (sec.snare[step]) {
-      this.au.noise({ t: 0.1, vol: 0.13, when, hp: 1600, lp: 7500, dest: mg });
-      this.au.tone({ type: 'triangle', f0: 190, f1: 150, t: 0.08, vol: 0.1, when, dest: mg });
+      // 日ごとの質感差: Day1=通常 / Day2=締まったタイト / Day3=乾いた金属質を一枚重ねる
+      if (this.snareStyle === 2) {
+        this.au.noise({ t: 0.07, vol: 0.13, when, hp: 2200, lp: 7500, dest: mg });
+        this.au.tone({ type: 'triangle', f0: 210, f1: 165, t: 0.06, vol: 0.1, when, dest: mg });
+      } else if (this.snareStyle === 3) {
+        this.au.noise({ t: 0.1, vol: 0.12, when, hp: 1600, lp: 7500, dest: mg });
+        this.au.tone({ type: 'triangle', f0: 190, f1: 150, t: 0.08, vol: 0.09, when, dest: mg });
+        this.au.noise({ t: 0.03, vol: 0.05, when, hp: 5000, dest: mg });
+      } else {
+        this.au.noise({ t: 0.1, vol: 0.13, when, hp: 1600, lp: 7500, dest: mg });
+        this.au.tone({ type: 'triangle', f0: 190, f1: 150, t: 0.08, vol: 0.1, when, dest: mg });
+      }
     }
     if (sec.hatC[step]) {
       this.au.noise({ t: 0.025, vol: 0.05, when, hp: 6800, dest: mg });

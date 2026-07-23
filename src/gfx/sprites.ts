@@ -130,6 +130,28 @@ const ARM_UP = [
   '........................',
   '........................',
 ];
+// よろけ用の非対称な腕（前へ大きく振り出してバランスを取る仕草。両手上げ系とシルエットを分ける）
+const ARM_BRACE = [
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '..............kk........',
+  '.............ktsk.......',
+  '............ktssk.......',
+  '...........ktssk........',
+  '..........ktssk.........',
+  '.........ktsk...........',
+  '........kssk............',
+  '........kk..............',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+];
 
 // 脚オーバーレイ（24×11、y=19開始）。手前脚=s/w、奥脚=S/W で描き分け
 const LEGS: string[][] = [
@@ -229,6 +251,20 @@ const LEGS_JUMP = [
   '...kWWdk.kwwdk..........',
   '....kdk...kdk...........',
   '........................',
+  '........................',
+  '........................',
+  '........................',
+];
+// 待機脚（直立、肩幅程度に開いて静止しているとわかる）
+const LEGS_IDLE = [
+  '.......knnnnnk..........',
+  '......kNnnnnnnk.........',
+  '.....kSnnkksnnk.........',
+  '.....kSSk..kssk.........',
+  '.....kSSk..kssk.........',
+  '.....kWWk..kwwk.........',
+  '.....kWWk..kwwk.........',
+  '.....kddk..kddk.........',
   '........................',
   '........................',
   '........................',
@@ -676,15 +712,16 @@ function makePed(shirt: string, shirtSh: string, skirt: boolean, hat: boolean): 
 
 export function buildSprites(): SpriteBank {
   const run: Sprite[] = [];
-  const armCycle = [ARM_FWD, ARM_MID, ARM_BACK, ARM_BACK, ARM_MID, ARM_FWD];
+  // 対側運動（前脚と反対側の腕が前）になるよう脚サイクルから半周ずらす
+  const armCycle = [ARM_BACK, ARM_MID, ARM_FWD, ARM_FWD, ARM_MID, ARM_BACK];
   const bob = [1, 0, 0, 1, 0, 0];
   for (let i = 0; i < 6; i++) {
     run.push(makePlayerFrame(armCycle[i], LEGS[i], bob[i]));
   }
   const jump = makePlayerFrame(ARM_UP, LEGS_JUMP, 0);
-  const stumble = makePlayerFrame(ARM_UP, LEGS_STUMBLE, 1);
+  const stumble = makePlayerFrame(ARM_BRACE, LEGS_STUMBLE, 1);
   const win = makePlayerFrame(ARM_UP, LEGS[1], 0);
-  const idle = makePlayerFrame(ARM_MID, LEGS[1], 0);
+  const idle = makePlayerFrame(ARM_MID, LEGS_IDLE, 0);
   const collapse = [mk(COLLAPSE_1, P), mk(COLLAPSE_2, P), mk(COLLAPSE_3, { ...P, x: '#221833' })];
 
   const peds = [

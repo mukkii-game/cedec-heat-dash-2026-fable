@@ -3,6 +3,7 @@
 // 縦画面: 下部デッキの上下パッド＋SLOW/DASH＋JUMPボタン（描画もここが担当）
 
 import type { Video, Rect } from './video';
+import { bitmapText, bitmapTextWidth } from './font';
 
 const DRAG_RANGE = 40; // CSSpx: 仮想スティックの飽和距離
 
@@ -267,41 +268,34 @@ export class Input {
       ctx.fillRect(r.x, r.y + r.h - px, r.w, px);
       ctx.fillRect(r.x + r.w - px, r.y, px, r.h);
     };
-    const tri = (r: Rect, dir: 'up' | 'down', active: boolean) => {
-      const cx = r.x + r.w / 2;
-      const cy = r.y + r.h / 2;
-      const s = Math.min(r.w, r.h) * 0.22;
-      ctx.fillStyle = active ? '#14101f' : '#8f86b8';
-      ctx.beginPath();
-      if (dir === 'up') {
-        ctx.moveTo(cx, cy - s);
-        ctx.lineTo(cx - s, cy + s * 0.7);
-        ctx.lineTo(cx + s, cy + s * 0.7);
-      } else {
-        ctx.moveTo(cx, cy + s);
-        ctx.lineTo(cx - s, cy - s * 0.7);
-        ctx.lineTo(cx + s, cy - s * 0.7);
-      }
-      ctx.closePath();
-      ctx.fill();
+    // 矢印・文字はすべてHUDと同じビットマップフォント経由（AA/滑らかな図形を使わない規律を維持）
+    const arrow = (r: Rect, dir: 'up' | 'down', active: boolean) => {
+      const scale = Math.max(2, Math.floor(Math.min(r.w, r.h) / 22));
+      const cx = Math.round(r.x + r.w / 2);
+      const cy = Math.round(r.y + r.h / 2 - (3.5 * scale) / 2);
+      bitmapText(ctx, dir === 'up' ? '↑' : '↓', cx, cy, {
+        color: active ? '#14101f' : '#8f86b8',
+        align: 'center',
+        scale,
+      });
     };
-    const label = (r: Rect, str: string, active: boolean, size = 0.22) => {
-      ctx.font = `bold ${Math.floor(Math.min(r.w, r.h) * size + r.w * 0.06)}px monospace`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = active ? '#14101f' : '#8f86b8';
-      ctx.fillText(str, r.x + r.w / 2, r.y + r.h / 2);
+    const label = (r: Rect, str: string, active: boolean) => {
+      const maxScale = Math.max(2, Math.floor((r.w * 0.82) / bitmapTextWidth(str, 1)));
+      const scale = Math.min(maxScale, Math.max(2, Math.floor(r.h / 14)));
+      const cx = Math.round(r.x + r.w / 2);
+      const cy = Math.round(r.y + r.h / 2 - (3.5 * scale) / 2);
+      bitmapText(ctx, str, cx, cy, { color: active ? '#14101f' : '#8f86b8', align: 'center', scale });
     };
 
     frame(this.padUp, this.holdingUp, '#3ec6c0');
-    tri(this.padUp, 'up', this.holdingUp);
+    arrow(this.padUp, 'up', this.holdingUp);
     frame(this.padDown, this.holdingDown, '#3ec6c0');
-    tri(this.padDown, 'down', this.holdingDown);
+    arrow(this.padDown, 'down', this.holdingDown);
     frame(this.padAcc, this.holdingAcc, '#f2a33c');
-    label(this.padAcc, '»DASH', this.holdingAcc, 0.14);
+    label(this.padAcc, 'DASH', this.holdingAcc);
     frame(this.padBrk, this.holdingBrk, '#4aa8e0');
-    label(this.padBrk, '«SLOW', this.holdingBrk, 0.14);
+    label(this.padBrk, 'SLOW', this.holdingBrk);
     frame(this.padJump, this.holdingJumpPad, '#e8504b');
-    label(this.padJump, 'JUMP', this.holdingJumpPad, 0.2);
+    label(this.padJump, 'JUMP', this.holdingJumpPad);
   }
 }

@@ -1,6 +1,6 @@
 // タイトル / OP / リザルト / 総合リザルト / ED
 
-import { VW, VH } from '../core/video';
+import { VW, VH, HUD_TOP } from '../core/video';
 import { bitmapText, text } from '../core/font';
 import { fmtTime } from '../core/i18n';
 import { Background, THEMES, zToY, scaleAt, PSX } from '../gfx/bg';
@@ -185,6 +185,12 @@ export class TitleScene implements Scene {
     // 手前に薄暮ビネット
     g.fillStyle = 'rgba(20,16,31,0.3)';
     g.fillRect(0, 0, VW, VH);
+
+    // 下端の筐体フレーム帯（HUD帯と同意匠。空白防止）
+    g.fillStyle = '#14101f';
+    g.fillRect(0, HUD_TOP, VW, VH - HUD_TOP);
+    g.fillStyle = '#3ec6c0';
+    g.fillRect(0, HUD_TOP, VW, 1);
 
     // ロゴ（背後に太陽）
     const ly = 42 + Math.sin(this.t * 1.5) * 2;

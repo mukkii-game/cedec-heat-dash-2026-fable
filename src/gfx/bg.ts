@@ -524,14 +524,30 @@ export class Background {
       if (sx1 < 0 || sx0 > VW) continue;
       sx0 = Math.max(-2, sx0);
       sx1 = Math.min(VW + 2, sx1);
-      // ピクセル階段の縁
-      const stair = (i % 2 === 0 ? 0 : 1) * (kind === 'shade' || kind === 'mirage' ? 1 : 0);
       switch (kind) {
         case 'shade':
-        case 'mirage':
+        case 'mirage': {
+          // ビルの輪郭を思わせる不規則な縁: 数行ごとにブロック段差＋
+          // まれに大きめの欠け(角)を入れる。左右で別シードにして
+          // 平行移動コピーに見えないようにする。
+          const chunk = Math.floor(i / 3);
+          const jL = Math.round((hash(x0 * 1.7 + chunk * 3.1) - 0.5) * 6);
+          const notchL = hash(x0 * 5.3 + chunk * 7.7) > 0.86 ? Math.round((hash(x0 * 9.1 + chunk) - 0.5) * 10) : 0;
+          const jR = Math.round((hash(x1 * 2.3 + chunk * 4.3 + 50) - 0.5) * 5);
+          const edgeL = Math.round(sx0) + jL + notchL;
+          const edgeR = Math.round(sx1) + jR;
+          const w = Math.max(0, edgeR - edgeL);
           g.fillStyle = t.shadeFill;
-          g.fillRect(Math.round(sx0) + stair, y, Math.round(sx1 - sx0), 1);
+          g.fillRect(edgeL, y, w, 1);
+          // 縁の内側1pxだけ暗いリムを重ねて厚み(奥行き)を出す
+          if (w > 3) {
+            g.fillStyle = t.shadeEdge;
+            g.globalAlpha = 0.35;
+            g.fillRect(edgeL, y, 2, 1);
+            g.globalAlpha = 1;
+          }
           break;
+        }
         case 'sand': {
           // 深い砂: 暗めの砂＋風紋。砂漠面でも「沈む場所」が判別できる
           g.fillStyle = t.sandB;

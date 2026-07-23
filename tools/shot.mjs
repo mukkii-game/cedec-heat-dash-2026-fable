@@ -28,7 +28,9 @@ for (const a of actions) {
     await page.keyboard.down(a.key);
     await page.waitForTimeout(a.ms);
     await page.keyboard.up(a.key);
-  } else if (a.type === 'shot') {
+  } else if (a.type === 'keydown') await page.keyboard.down(a.key);
+  else if (a.type === 'keyup') await page.keyboard.up(a.key);
+  else if (a.type === 'shot') {
     await page.screenshot({ path: `${process.env.SHOTDIR ?? '.'}/${name}-${a.tag}.png` });
   }
 }

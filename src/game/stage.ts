@@ -3,7 +3,7 @@
 import { VW, VH, FLOOR_TOP, HUD_TOP } from '../core/video';
 import { bitmapText, text } from '../core/font';
 import { fmtTime } from '../core/i18n';
-import { Background, THEMES, zToY, scaleAt, ppmAt, sxOf, PSX } from '../gfx/bg';
+import { Background, THEMES, zToY, scaleAt, ppmAt, sxOf, PSX, hash } from '../gfx/bg';
 import { blit, flipX, type Sprite } from '../gfx/pix';
 import {
   makeTree,
@@ -39,12 +39,16 @@ const HEAT_SUN = 2.2;
 const HEAT_SHADE = -3.0;
 const HEAT_GLARE = 5.5;
 const HEAT_MIST = -12.0;
-const HEAT_DASH_SUN = 3.2; // ダッシュ中の追加ヒート
+const HEAT_DASH_SUN = 4.3; // ダッシュ中の追加ヒート（日向合計+6.5/s＝押しっぱなしが安全な支配戦略にならない水準）
 const HEAT_DASH_SHADE = 2.4;
 const BRAKE_HEAT_MULT = 0.55; // ブレーキ中は日向の蓄熱を抑える
 const STORE_TIME = 1.4;
 const STORE_COOL = 55;
 const CARD_TIME = 0.7;
+const GULL_TRIGGER_DIST = 16; // m
+const GULL_WARN_T = 0.75; // s
+const GULL_DIVE_T = 0.6; // s
+const GULL_HIT_FROM = 0.15; // dive開始からの被弾有効化(s)
 /** 表示用スプライト倍率（画面上の存在感。当たり判定はメートル系で不変） */
 const SPR = 1.45;
 
@@ -177,12 +181,14 @@ export class Stage implements Scene {
     this.firstShade = false;
     this.firstLowHp = false;
     this.hintT = 4.5;
+    // phaseは決定論的（座標由来のhash）にする。乱数だと同じ日でも毎回
+    // 人・カモメの動きが変わり、「覚えて上達する」がタイムに乗らなくなるため。
     this.obs = this.course.obs.map((o) => ({
       ...o,
       baseZ: o.z,
       curZ: o.z,
       curX: o.x,
-      phase: Math.random() * Math.PI * 2,
+      phase: hash(o.x * 3.7 + o.z * 11.3) * Math.PI * 2,
       gullState: o.type === 'gull' ? 'idle' : undefined,
       gullT: 0,
     }));
@@ -326,14 +332,10 @@ export class Stage implements Scene {
   }
 
   private updatePause(): void {
+    // ポーズ/再開のトグル自体は update() 冒頭で処理済み（同フレーム内で
+    // pausePressed を再度見ると、まだクリアされておらず即座に解除してしまうため、
+    // ここでは扱わない）。
     const { input, audio } = this.ctx;
-    if (input.pausePressed) {
-      this.paused = false;
-      return;
-    }
-    if (input.moveY < -0.5 || input.moveY > 0.5) {
-      // キー操作はupdateが毎フレーム呼ばれるため、単純な移動はタップ/Enterのみに
-    }
     const items = 3;
     for (const tp of input.taps) {
       const idx = Math.floor((tp.y - 130) / 22);
@@ -469,7 +471,7 @@ export class Stage implements Scene {
       return;
     }
     if (this.heat > 75) {
-      audio.sfx('lowHp');
+      audio.sfxLowHp(this.heat);
       if (!this.firstLowHp) {
         this.firstLowHp = true;
         this.quip(i18n.t('q.lowHp'));
@@ -688,15 +690,17 @@ export class Stage implements Scene {
           break;
         }
         case 'gull': {
+          // トリガー距離・予告時間は、巡航〜ダッシュ速度(8.4〜15.1m/s)で
+          // 実際に被弾しうる窓に収まるよう調整済み（でないと理論上ノーダメージになる）
           o.gullT = (o.gullT ?? 0) + dt;
-          if (o.gullState === 'idle' && this.px > o.x - 24) {
+          if (o.gullState === 'idle' && this.px > o.x - GULL_TRIGGER_DIST) {
             o.gullState = 'warn';
             o.gullT = 0;
             this.ctx.audio.sfx('gull');
-          } else if (o.gullState === 'warn' && o.gullT > 1.0) {
+          } else if (o.gullState === 'warn' && o.gullT > GULL_WARN_T) {
             o.gullState = 'dive';
             o.gullT = 0;
-          } else if (o.gullState === 'dive' && o.gullT > 0.5) {
+          } else if (o.gullState === 'dive' && o.gullT > GULL_DIVE_T) {
             o.gullState = 'gone';
             o.gullT = 0;
           }
@@ -839,7 +843,7 @@ export class Stage implements Scene {
           }
           break;
         case 'gull':
-          if (o.gullState === 'dive' && (o.gullT ?? 0) > 0.22 && !jumpClear) {
+          if (o.gullState === 'dive' && (o.gullT ?? 0) > GULL_HIT_FROM && !jumpClear) {
             if (Math.abs(dx) < 0.9 && dz < 0.1) {
               this.damage(12);
               o.gullState = 'gone';
@@ -1257,7 +1261,7 @@ export class Stage implements Scene {
               },
             });
           } else if (o.gullState === 'dive') {
-            const t = (o.gullT ?? 0) / 0.5;
+            const t = (o.gullT ?? 0) / GULL_DIVE_T;
             const by = sy - (1 - Math.sin(Math.PI * Math.min(1, t * 1.1))) * 70 - 4;
             const f = S.gull[Math.floor(this.time * 10) % 2];
             items.push({
@@ -1386,9 +1390,11 @@ export class Stage implements Scene {
     g.fillRect(gx, rowY, gw, 7);
     const frac = this.heat / 100;
     const barW = Math.round(gw * frac);
-    let col = '#f2a33c';
-    if (this.heat < 45) col = '#e8c832';
-    if (this.heat >= 75) col = Math.floor(this.time * 6) % 2 === 0 ? '#ff5a32' : '#e8504b';
+    // 緑(快適)→黄→橙→赤点滅(危険)の4段階
+    let col = '#6fc850';
+    if (this.heat >= 30) col = '#e8c832';
+    if (this.heat >= 60) col = '#f2a33c';
+    if (this.heat >= 80) col = Math.floor(this.time * 6) % 2 === 0 ? '#ff5a32' : '#e8504b';
     g.fillStyle = col;
     g.fillRect(gx, rowY, barW, 7);
     g.fillStyle = 'rgba(255,255,255,0.35)';
@@ -1399,7 +1405,7 @@ export class Stage implements Scene {
     }
     // 危険域マーカー
     g.fillStyle = '#ff5a32';
-    g.fillRect(gx + Math.round(gw * 0.75), rowY - 1, 1, 2);
+    g.fillRect(gx + Math.round(gw * 0.8), rowY - 1, 1, 2);
 
     // AREA進行バー
     bitmapText(g, 'AREA', 305, rowY, { color: '#8f86b8' });

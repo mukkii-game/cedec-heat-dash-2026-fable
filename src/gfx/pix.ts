@@ -117,6 +117,7 @@ export function blitHeatTint(
   scale: number,
   frac: number,
   tintColor = '#e8342a',
+  pulse = 0,
 ): void {
   if (frac <= 0.02) {
     blit(ctx, s, x, y, scale);
@@ -137,9 +138,11 @@ export function blitHeatTint(
   }
   cx.drawImage(s.c, 0, 0);
   const f = Math.min(1, Math.max(0, frac));
+  // ゲージ廃止で体色だけが指標になるため、最大値まで濃くはっきり赤くする。
+  // 危険域(pulse>0)ではさらに明滅を重ねて「死にそう」を体で伝える。
   const tintH = Math.ceil(s.h * f);
   cx.globalCompositeOperation = 'source-atop';
-  cx.globalAlpha = Math.min(0.82, 0.25 + f * 0.6);
+  cx.globalAlpha = Math.min(0.95, 0.3 + f * 0.68 + pulse);
   cx.fillStyle = tintColor;
   cx.fillRect(0, s.h - tintH, s.w, tintH);
   cx.globalAlpha = 1;

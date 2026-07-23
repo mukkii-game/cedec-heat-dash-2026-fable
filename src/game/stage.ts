@@ -1442,7 +1442,9 @@ export class Stage implements Scene {
     g.translate(PSX, anchorY);
     g.rotate(this.tiltAngle);
     g.translate(-PSX, -anchorY);
-    blitHeatTint(g, spr, PSX, sy - jy, sc * SPR, this.heat / 100);
+    // 危険域(ヒート85%以上)は明滅を重ねて「死にそう」を体そのもので伝える
+    const heatPulse = this.heat >= 85 ? Math.max(0, Math.sin(this.time * 10)) * 0.15 : 0;
+    blitHeatTint(g, spr, PSX, sy - jy, sc * SPR, this.heat / 100, undefined, heatPulse);
     g.restore();
 
     // 高速オーラ（ダッシュ中の残像）
@@ -1500,38 +1502,13 @@ export class Stage implements Scene {
     bitmapText(g, 'TIME', 44, rowY, { color: '#8f86b8' });
     bitmapText(g, fmtTime(this.timer), 72, rowY, { color: '#f5f1e8' });
 
-    // HEATゲージ（0=快適 → 100=熱中症。上がるほど危険。時間制限の代わりに唯一の敗北条件）
-    bitmapText(g, 'HEAT', 150, rowY, { color: '#8f86b8' });
-    const gx = 178;
-    const gw = 92;
-    g.fillStyle = '#221833';
-    g.fillRect(gx - 1, rowY - 1, gw + 2, 9);
-    // 涼しい下地
-    g.fillStyle = '#1e3448';
-    g.fillRect(gx, rowY, gw, 7);
-    const frac = this.heat / 100;
-    const barW = Math.round(gw * frac);
-    // 緑(快適)→黄→橙→赤点滅(危険)の4段階
-    let col = '#6fc850';
-    if (this.heat >= 30) col = '#e8c832';
-    if (this.heat >= 60) col = '#f2a33c';
-    if (this.heat >= 80) col = Math.floor(this.time * 6) % 2 === 0 ? '#ff5a32' : '#e8504b';
-    g.fillStyle = col;
-    g.fillRect(gx, rowY, barW, 7);
-    g.fillStyle = 'rgba(255,255,255,0.35)';
-    g.fillRect(gx, rowY, barW, 1);
-    for (let i = 1; i < 4; i++) {
-      g.fillStyle = '#14101f';
-      g.fillRect(gx + Math.round((gw * i) / 4), rowY, 1, 7);
-    }
-    // 危険域マーカー
-    g.fillStyle = '#ff5a32';
-    g.fillRect(gx + Math.round(gw * 0.8), rowY - 1, 1, 2);
+    // ヒートゲージ用のHUDバーは廃止。主人公の体そのもの（足元から頭へ赤みが
+    // せり上がる演出、drawPlayer内のblitHeatTint）だけがヒートの表示を兼ねる。
 
-    // AREA進行バー
-    bitmapText(g, 'AREA', 285, rowY, { color: '#8f86b8' });
-    const ax = 313;
-    const aw = 120;
+    // AREA進行バー（ヒートバー廃止で空いた分、幅を広く取る）
+    bitmapText(g, 'AREA', 150, rowY, { color: '#8f86b8' });
+    const ax = 178;
+    const aw = 250;
     g.fillStyle = '#221833';
     g.fillRect(ax - 1, rowY + 1, aw + 2, 5);
     g.fillStyle = '#2b8f92';

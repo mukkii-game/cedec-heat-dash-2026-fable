@@ -45,8 +45,10 @@ const BRAKE_HEAT_MULT = 0.55; // ブレーキ中は日向の蓄熱を抑える
 const STORE_TIME = 1.4;
 const STORE_COOL = 55;
 const CARD_TIME = 0.7;
-const GULL_TRIGGER_DIST = 16; // m
-const GULL_WARN_T = 0.75; // s
+// 距離/警告時間は「巡航速度(8.4〜10.8m/s)では届かず、ダッシュ速度(11.8〜15.1m/s)
+// でだけ被弾しうる」を維持しつつ、GAME_DESIGN.md §10の「1秒以上の予告」を満たす値
+const GULL_TRIGGER_DIST = 18; // m
+const GULL_WARN_T = 1.0; // s
 const GULL_DIVE_T = 0.6; // s
 const GULL_HIT_FROM = 0.15; // dive開始からの被弾有効化(s)
 /** 表示用スプライト倍率（画面上の存在感。当たり判定はメートル系で不変） */

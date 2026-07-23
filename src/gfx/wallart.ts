@@ -220,15 +220,25 @@ export function makePillar(): Sprite {
 
 /** 汎用看板（テキスト焼き込み、キャッシュ） */
 const signCache = new Map<string, Sprite>();
-export function makeSign(label: string, icon: 'updown' | 'jump' | 'goal' | 'none'): Sprite {
+export function makeSign(label: string, icon: 'updown' | 'jump' | 'goal' | 'warn' | 'none'): Sprite {
   const key = `${label}|${icon}`;
   const hit = signCache.get(key);
   if (hit) return hit;
-  const [c, g] = cv(30, 30);
+  const [c, g] = cv(34, 30);
+  const w = icon === 'warn' ? 34 : 30;
   g.fillStyle = OUTLINE;
-  g.fillRect(0, 0, 30, 18);
-  g.fillStyle = icon === 'goal' ? '#e8504b' : '#2e4a7a';
-  g.fillRect(1, 1, 28, 16);
+  g.fillRect(0, 0, w, 18);
+  g.fillStyle = icon === 'goal' ? '#e8504b' : icon === 'warn' ? '#ffd94d' : '#2e4a7a';
+  g.fillRect(1, 1, w - 2, 16);
+  if (icon === 'warn') {
+    text(g, label, w / 2, 4, { size: 9, color: '#221833', align: 'center', bold: true });
+    // 縞の縁
+    g.fillStyle = '#221833';
+    for (let i = 0; i < w; i += 6) {
+      g.fillRect(i, 1, 3, 2);
+      g.fillRect(((i + 3) % w) - 0, 15, 3, 2);
+    }
+  }
   g.fillStyle = '#f5f1e8';
   if (icon === 'updown') {
     // ↑↓アイコン
@@ -238,7 +248,7 @@ export function makeSign(label: string, icon: 'updown' | 'jump' | 'goal' | 'none
     g.fillRect(20, 6, 2, 8);
     g.fillRect(18, 10, 6, 2);
     g.fillRect(19, 12, 4, 1);
-  } else {
+  } else if (icon !== 'warn') {
     text(g, label, 15, 4, { size: 8, color: '#f5f1e8', align: 'center' });
   }
   // 脚

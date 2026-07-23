@@ -114,6 +114,8 @@ export class Stage implements Scene {
 
   private obs: Ob[] = [];
   private lasers: LaserRt[] = [];
+  /** 蜃気楼ゾーンの残存度（コースzones配列と同indexで1→0） */
+  private mirageFade: number[] = [];
   private particles: Particle[] = [];
   private quips: Quip[] = [];
   private quipCd = 0;
@@ -185,6 +187,7 @@ export class Stage implements Scene {
       gullT: 0,
     }));
     this.lasers = this.course.lasers.map(() => ({ state: 'idle', t: 0, hitDone: false }));
+    this.mirageFade = this.course.zones.map(() => 1);
   }
 
   enter(): void {
@@ -298,7 +301,7 @@ export class Stage implements Scene {
       case 'ready':
         if (this.stateT >= 0.9 && this.stateT - dt < 0.9) {
           audio.sfx('go');
-          music.play(this.day === 1 ? 'day1' : 'day1');
+          music.play(`day${this.day}` as 'day1' | 'day2' | 'day3');
           this.quip(i18n.t('q.start'));
         }
         if (this.stateT >= 0.9) {
@@ -517,6 +520,20 @@ export class Stage implements Scene {
     this.stumbleT = Math.max(0, this.stumbleT - dt);
     this.invulnT = Math.max(0, this.invulnT - dt);
 
+    // 蜃気楼: 近づくと消える（揺らぎで偽物と分かるが、初見は騙される）
+    for (let i = 0; i < this.course.zones.length; i++) {
+      const zn = this.course.zones[i];
+      if (zn.kind !== 'mirage') continue;
+      if (this.px > zn.x0 - 14 && this.mirageFade[i] > 0) {
+        const prev = this.mirageFade[i];
+        this.mirageFade[i] = Math.max(0, prev - dt * 1.8);
+        if (prev > 0.5 && this.mirageFade[i] <= 0.5) {
+          this.quip(i18n.t('q.mirage'));
+          audio.sfx('mist');
+        }
+      }
+    }
+
     this.checkStore();
     this.checkCollisions();
 
@@ -607,6 +624,11 @@ export class Stage implements Scene {
       const def = this.course.lasers[i];
       if (this.px > def.x - def.halfW - 14 && this.px < def.x + def.halfW + 2) {
         laserEngaged = true;
+        if (def.sweep) {
+          // スイープは始点(z0)側で待ち、帯が通過したらそのまま
+          targetZ = Math.max(0.06, def.z0 + 0.03);
+          break;
+        }
         const env = this.env(this.px, this.pz);
         const inBand = this.pz > def.z0 - 0.05 && this.pz < def.z1 + 0.05;
         if (inBand && !env.shaded) {
@@ -614,6 +636,18 @@ export class Stage implements Scene {
           targetZ = Math.min(0.95, Math.max(0.05, targetZ));
         } else {
           targetZ = this.pz;
+        }
+      }
+    }
+    // 砂を避ける（レーザー対応中でなければ）
+    if (!laserEngaged) {
+      for (const zn of this.course.zones) {
+        if (zn.kind !== 'sand') continue;
+        if (zn.x1 < this.px + 1 || zn.x0 > this.px + 14) continue;
+        if (targetZ >= zn.z0 - 0.06 && targetZ <= zn.z1 + 0.06) {
+          const below = zn.z0 - 0.12;
+          const above = zn.z1 + 0.12;
+          targetZ = below > 0.05 && (Math.abs(below - this.pz) < Math.abs(above - this.pz) || above > 0.95) ? below : Math.min(0.95, above);
         }
       }
     }
@@ -644,7 +678,8 @@ export class Stage implements Scene {
       const dist = o.curX - this.px;
       if (dist < -30 || dist > 90) continue;
       switch (o.type) {
-        case 'ped': {
+        case 'ped':
+        case 'suitcase': {
           o.curX += (o.v ?? 0) * dt;
           if (o.zAmp) {
             o.curZ = o.baseZ + Math.sin(this.time * 0.9 + o.phase) * o.zAmp;
@@ -707,23 +742,25 @@ export class Stage implements Scene {
           break;
         case 'fire': {
           rt.t += dt;
-          // 被弾判定
+          const dur = def.sweep ? 1.05 : 0.6;
+          // 被弾判定（スイープは奥→手前へ移動する帯）
           if (!rt.hitDone && this.invulnT <= 0) {
             const inX = Math.abs(this.px - def.x) < def.halfW;
-            const inZ = this.pz >= def.z0 && this.pz <= def.z1;
+            let inZ: boolean;
+            if (def.sweep) {
+              const c = def.z0 + (def.z1 - def.z0) * Math.min(1, rt.t / dur);
+              inZ = Math.abs(this.pz - c) < 0.15;
+            } else {
+              inZ = this.pz >= def.z0 && this.pz <= def.z1;
+            }
             const env = this.env(this.px, this.pz);
             if (inX && inZ && !env.shaded) {
               rt.hitDone = true;
               this.damage(22);
-              this.ctx.audio.sfx('laserFire');
             }
           }
-          if (rt.t >= 0.6) {
+          if (rt.t >= dur) {
             rt.state = 'done';
-            // 回避成功セリフ
-            if (!rt.hitDone && Math.abs(this.px - def.x) < 26) {
-              this.quip(i18n.t('q.laserHit') === '' ? '' : this.ctx.i18n.t('q.laserWarn'));
-            }
           }
           break;
         }
@@ -837,10 +874,19 @@ export class Stage implements Scene {
 
     // ゾーン（砂→照り返し→ミスト→影の順）
     for (const kind of ['sand', 'glare', 'mist', 'shade', 'mirage'] as const) {
-      for (const zn of this.course.zones) {
+      for (let zi = 0; zi < this.course.zones.length; zi++) {
+        const zn = this.course.zones[zi];
         if (zn.kind !== kind) continue;
         if (zn.x1 < camX - 15 || zn.x0 > camX + 60) continue;
-        this.bg.drawZone(g, camX, this.time, zn.kind, zn.x0, zn.x1, zn.z0, zn.z1, zn.shear ?? 0);
+        if (kind === 'mirage') {
+          const f = this.mirageFade[zi];
+          if (f <= 0.02) continue;
+          g.globalAlpha = f;
+          this.bg.drawZone(g, camX, this.time, zn.kind, zn.x0, zn.x1, zn.z0, zn.z1, zn.shear ?? 0);
+          g.globalAlpha = 1;
+        } else {
+          this.bg.drawZone(g, camX, this.time, zn.kind, zn.x0, zn.x1, zn.z0, zn.z1, zn.shear ?? 0);
+        }
       }
     }
 
@@ -852,6 +898,15 @@ export class Stage implements Scene {
     this.drawLaserBeams(g, camX);
 
     g.restore();
+
+    // 陽炎（Day3: 遠景を横に揺らす走査歪み）
+    if (this.bg.theme.desert) {
+      for (let i = 0; i < 6; i++) {
+        const y = 46 + i * 9;
+        const off = Math.round(Math.sin(this.time * 2.6 + i * 1.9) * 1.6);
+        if (off !== 0) g.drawImage(g.canvas, 0, y, VW, 4, off, y, VW, 4);
+      }
+    }
 
     // パーティクル（スクリーン空間）
     for (const p of this.particles) {
@@ -916,16 +971,33 @@ export class Stage implements Scene {
           blit(g, makeBanner(d.text), sx, baseY - 18);
           break;
         case 'awning': {
-          const w = d.w * ppm0;
+          const w = Math.round(d.w * ppm0);
           const x0 = Math.round(sx - w / 2);
+          // 店舗ファサード（ひさしの持ち主）
           g.fillStyle = '#221833';
-          g.fillRect(x0, 78, Math.round(w), 12);
-          for (let i = 0; i < w; i += 8) {
+          g.fillRect(x0 - 2, 60, w + 4, 45);
+          g.fillStyle = '#e8dcc8';
+          g.fillRect(x0, 62, w, 42);
+          // 2階窓
+          g.fillStyle = '#8fb8cc';
+          for (let i = 6; i < w - 10; i += 16) {
+            g.fillRect(x0 + i, 66, 8, 8);
+            g.fillStyle = '#221833';
+            g.fillRect(x0 + i, 74, 8, 1);
+            g.fillStyle = '#8fb8cc';
+          }
+          // 1階ショーウィンドウ
+          g.fillStyle = '#bfe8f2';
+          g.fillRect(x0 + 4, 90, w - 8, 13);
+          // ひさし
+          g.fillStyle = '#221833';
+          g.fillRect(x0 - 3, 78, w + 6, 12);
+          for (let i = 0; i < w + 4; i += 8) {
             g.fillStyle = Math.floor(i / 8) % 2 === 0 ? '#e8504b' : '#f5f1e8';
-            g.fillRect(x0 + i + 1, 79, Math.min(7, w - i - 2), 10);
+            g.fillRect(x0 - 2 + i, 79, Math.min(7, w + 4 - i - 1), 10);
           }
           g.fillStyle = '#b03042';
-          g.fillRect(x0, 88, Math.round(w), 2);
+          g.fillRect(x0 - 3, 88, w + 6, 2);
           break;
         }
       }
@@ -1015,12 +1087,20 @@ export class Stage implements Scene {
       const rt = this.lasers[i];
       if (rt.state !== 'fire') continue;
       const def = this.course.lasers[i];
-      const zMid = (def.z0 + def.z1) / 2;
+      const dur = def.sweep ? 1.05 : 0.6;
+      let zLo = def.z0;
+      let zHi = def.z1;
+      if (def.sweep) {
+        const c = def.z0 + (def.z1 - def.z0) * Math.min(1, rt.t / dur);
+        zLo = Math.max(0, c - 0.15);
+        zHi = Math.min(1, c + 0.15);
+      }
+      const zMid = (zLo + zHi) / 2;
       const sx0 = Math.round(sxOf(def.x - def.halfW, camX, zMid));
       const sx1 = Math.round(sxOf(def.x + def.halfW, camX, zMid));
       const w = sx1 - sx0;
-      const fade = rt.t < 0.08 ? rt.t / 0.08 : rt.t > 0.45 ? Math.max(0, (0.6 - rt.t) / 0.15) : 1;
-      const yBot = Math.round(zToY(def.z1));
+      const fade = rt.t < 0.08 ? rt.t / 0.08 : rt.t > dur - 0.15 ? Math.max(0, (dur - rt.t) / 0.15) : 1;
+      const yBot = Math.round(zToY(zHi));
       g.globalAlpha = 0.85 * fade;
       g.fillStyle = '#ff8c42';
       g.fillRect(sx0 - 3, 0, w + 6, yBot);
@@ -1029,7 +1109,7 @@ export class Stage implements Scene {
       g.fillRect(sx0 + Math.round(w * 0.18), 0, Math.round(w * 0.64), yBot);
       g.globalAlpha = 1;
       // 着弾の白熱
-      const y0 = Math.round(zToY(def.z0));
+      const y0 = Math.round(zToY(zLo));
       for (let y = y0; y <= yBot; y += 1) {
         if ((y + Math.floor(this.time * 30)) % 3 === 0) continue;
         const ex0 = this.telegraphX(def.x - def.halfW, camX, y);
@@ -1114,6 +1194,40 @@ export class Stage implements Scene {
               this.drawShadow(g, sx, sy, 11 * sc * SPR);
               blit(g, S.cart, sx, sy, sc * SPR);
             },
+          });
+          break;
+        }
+        case 'suitcase': {
+          const v = o.variant ?? 0;
+          const frames = (o.v ?? 0) >= 0 ? S.peds[v % S.peds.length] : this.pedFlip[v % S.peds.length];
+          const f = frames[Math.floor(this.time * 4 + o.phase) % 2];
+          const side = (o.v ?? 0) >= 0 ? -1 : 1;
+          items.push({
+            z: o.curZ,
+            fn: () => {
+              this.drawShadow(g, sx, sy, 13 * sc * SPR);
+              blit(g, S.suitcase, sx + side * 9 * sc * SPR, sy, sc * SPR);
+              blit(g, f, sx, sy, sc * SPR);
+            },
+          });
+          break;
+        }
+        case 'tumbleweed': {
+          const f = S.tumbleweed[Math.floor(this.time * 9) % 2];
+          const bounce = Math.abs(Math.sin(this.time * 7 + o.phase)) * 5 * sc;
+          items.push({
+            z: o.curZ,
+            fn: () => {
+              this.drawShadow(g, sx, sy, 8 * sc * SPR);
+              blit(g, f, sx, sy - bounce, sc * SPR);
+            },
+          });
+          break;
+        }
+        case 'dune': {
+          items.push({
+            z: o.curZ,
+            fn: () => blit(g, S.dune, sx, sy + 1, sc * SPR),
           });
           break;
         }
@@ -1321,7 +1435,15 @@ export class Stage implements Scene {
     });
 
     // 下段: 日付・スピード風味
-    const sub = i18n.lang === 'ja' ? `7月${21 + this.day}日 みなとみらい` : `JULY ${21 + this.day} MINATOMIRAI`;
+    const place =
+      this.day === 3
+        ? i18n.lang === 'ja'
+          ? 'みなとみらい砂漠'
+          : 'MINATOMIRAI DESERT'
+        : i18n.lang === 'ja'
+          ? 'みなとみらい'
+          : 'MINATOMIRAI';
+    const sub = i18n.lang === 'ja' ? `7月${21 + this.day}日 ${place}` : `JULY ${21 + this.day} ${place}`;
     text(g, sub, 5, HUD_TOP + 18, { size: 10, color: '#6a6090' });
     bitmapText(g, `${(this.v * 3.6).toFixed(0)}KM/H`, VW - 45, HUD_TOP + 20, { color: '#6a6090' });
   }

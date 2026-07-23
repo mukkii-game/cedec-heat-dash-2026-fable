@@ -66,9 +66,14 @@ async function boot(): Promise<void> {
 
   input.onFirstGesture = () => audio.unlock();
 
-  if (new URLSearchParams(location.search).has('sprites')) {
+  const params = new URLSearchParams(location.search);
+  if (params.has('sprites')) {
     const { SpriteDebugScene } = await import('./game/debugScene');
     setScene(new SpriteDebugScene(ctx));
+  } else if (params.has('day')) {
+    // 開発用: 指定日へ直行
+    const d = Math.min(3, Math.max(1, parseInt(params.get('day') ?? '1', 10) || 1));
+    setScene(new Stage(ctx, d));
   } else {
     setScene(new TitleScene(ctx));
   }

@@ -82,6 +82,54 @@ export const THEMES: Record<number, DayTheme> = {
     desert: false,
     giantSun: false,
   },
+  2: {
+    sky: ['#e8a83c', '#f2bc58', '#ffd98a', '#ffe8b0', '#fff3d0'],
+    sea: '#c88a4a',
+    farSil: '#c09468',
+    farSil2: '#d0a878',
+    bldg: ['#e0c8a8', '#c8ac88', '#a88c6c'],
+    win: '#c8a888',
+    winLit: '#fff0c8',
+    paveA: '#eed3a0',
+    paveB: '#e4c890',
+    grout: '#c8a878',
+    curb: '#b89868',
+    wallBase: '#e0cca8',
+    wallDark: '#c0a888',
+    hedge: '#8aa04a',
+    hedgeDark: '#5c7a34',
+    shadeFill: 'rgba(88,64,140,0.46)',
+    shadeEdge: '#6a4aa0',
+    sandA: '#edc57e',
+    sandB: '#d9a45c',
+    glare: 'rgba(255,244,200,0.6)',
+    desert: false,
+    giantSun: false,
+  },
+  3: {
+    sky: ['#e86a3c', '#f2884a', '#ff9e4f', '#ffbc5e', '#ffd166'],
+    sea: '#d9a45c',
+    farSil: '#b06a52',
+    farSil2: '#c07e5e',
+    bldg: ['#d8a878', '#c08c60', '#a07048'],
+    win: '#b08058',
+    winLit: '#ffe8a8',
+    paveA: '#edc57e',
+    paveB: '#e2b86e',
+    grout: '#c89858',
+    curb: '#b08850',
+    wallBase: '#d8b888',
+    wallDark: '#b89468',
+    hedge: '#a8a05c',
+    hedgeDark: '#787840',
+    shadeFill: 'rgba(120,56,110,0.46)',
+    shadeEdge: '#985090',
+    sandA: '#f2cd86',
+    sandB: '#dcae64',
+    glare: 'rgba(255,240,190,0.65)',
+    desert: true,
+    giantSun: true,
+  },
 };
 
 // 決定論的ハッシュ（0..1）
@@ -115,6 +163,39 @@ export class Background {
     c.width = TEX_W;
     c.height = TEX_H;
     const g = c.getContext('2d')!;
+    if (t.desert) {
+      // 砂に半ば埋もれた歩道
+      g.fillStyle = t.sandA;
+      g.fillRect(0, 0, TEX_W, TEX_H);
+      for (let i = 0; i < 500; i++) {
+        const n = hash(i * 3.1);
+        g.fillStyle = n > 0.5 ? t.sandB : t.paveB;
+        g.fillRect(Math.floor(hash(i * 1.7) * TEX_W), Math.floor(hash(i * 7.9) * TEX_H), n > 0.85 ? 2 : 1, 1);
+      }
+      // 露出したタイルの島
+      for (let i = 0; i < 14; i++) {
+        const x = Math.floor(hash(i * 11.3) * TEX_W);
+        const y = Math.floor(hash(i * 5.7) * (TEX_H - 10));
+        const w = 18 + Math.floor(hash(i * 2.3) * 30);
+        g.fillStyle = t.paveA;
+        g.fillRect(x, y, w, 8);
+        g.fillStyle = t.grout;
+        g.fillRect(x, y, w, 1);
+        for (let jx = x; jx < x + w; jx += 12) g.fillRect(jx, y, 1, 8);
+      }
+      // 風紋
+      g.fillStyle = t.sandB;
+      for (let i = 0; i < 26; i++) {
+        const y = Math.floor(hash(i * 4.3) * TEX_H);
+        const x = Math.floor(hash(i * 9.7) * TEX_W);
+        for (let k = 0; k < 14; k++) {
+          g.fillRect((x + k * 3) % TEX_W, y + Math.floor(Math.sin(k * 0.9) * 1.5), 2, 1);
+        }
+      }
+      g.fillStyle = t.curb;
+      g.fillRect(0, 0, TEX_W, 2);
+      return c;
+    }
     g.fillStyle = t.paveA;
     g.fillRect(0, 0, TEX_W, TEX_H);
     // タイル 12×12px(1.5m角) の市松（目地が細かいほど速度が伝わる）
@@ -148,6 +229,47 @@ export class Background {
     c.width = 480;
     c.height = 46; // y54..100相当
     const g = c.getContext('2d')!;
+    if (t.desert) {
+      // 遠景の砂丘と、砂に半ば埋もれた観覧車
+      g.fillStyle = t.sea; // 砂の海
+      g.fillRect(0, 24, 480, 22);
+      for (let i = 0; i < 6; i++) {
+        const cx = Math.floor(hash(i * 7.7) * 480);
+        const r = 30 + Math.floor(hash(i * 3.1) * 50);
+        g.fillStyle = i % 2 === 0 ? t.farSil2 : t.farSil;
+        for (let y = 0; y < 14; y++) {
+          const half = Math.floor(Math.sqrt(Math.max(0, r * r - (y + r - 14) * (y + r - 14))));
+          g.fillRect(cx - half, 24 + y, half * 2, 1);
+        }
+      }
+      // 埋もれた観覧車（上半分だけ砂から出ている）
+      const cx = 350;
+      const cy = 30;
+      const r = 18;
+      g.strokeStyle = t.farSil;
+      g.fillStyle = t.farSil;
+      g.lineWidth = 1;
+      g.beginPath();
+      g.arc(cx, cy, r, Math.PI, Math.PI * 2);
+      g.stroke();
+      for (let k = 0; k < 5; k++) {
+        const a = Math.PI + (k / 4) * Math.PI;
+        g.beginPath();
+        g.moveTo(cx, cy);
+        g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+        g.stroke();
+        g.fillRect(Math.round(cx + Math.cos(a) * r) - 1, Math.round(cy + Math.sin(a) * r) - 1, 3, 3);
+      }
+      // 遠くのヤシ
+      for (const px of [60, 150, 260, 430]) {
+        g.fillStyle = t.farSil;
+        g.fillRect(px, 18, 2, 10);
+        for (const [dx, dy] of [[-4, -3], [4, -3], [-2, -5], [2, -5]]) {
+          g.fillRect(px + dx, 18 + dy, 3, 1);
+        }
+      }
+      return c;
+    }
     // 海
     g.fillStyle = t.sea;
     g.fillRect(0, 26, 480, 20);
@@ -241,6 +363,40 @@ export class Background {
     c.width = 480;
     c.height = 48; // y56..104相当
     const g = c.getContext('2d')!;
+    if (t.desert) {
+      // 砂丘の壁＋ロープ柵＋枯れ植木
+      g.fillStyle = t.wallBase;
+      g.fillRect(0, 26, 480, 22);
+      for (let x = 0; x < 480; x += 3) {
+        const n = hash(x * 2.3);
+        g.fillStyle = n > 0.6 ? t.sandA : t.wallBase;
+        g.fillRect(x, 26 + Math.floor(Math.sin(x * 0.05) * 3 + n * 2), 3, 20);
+      }
+      g.fillStyle = t.wallDark;
+      g.fillRect(0, 46, 480, 2);
+      // ロープ柵
+      for (let x = 12; x < 480; x += 56) {
+        g.fillStyle = '#8a6a42';
+        g.fillRect(x, 32, 3, 15);
+        g.fillStyle = '#6a4e30';
+        g.fillRect(x + 2, 32, 1, 15);
+      }
+      g.fillStyle = '#a08058';
+      for (let x = 12; x < 480 - 56; x += 56) {
+        for (let k = 0; k < 56; k += 2) {
+          g.fillRect(x + k, 36 + Math.floor(Math.sin((k / 56) * Math.PI) * 3), 2, 1);
+        }
+      }
+      // 枯れ草
+      for (let x = 30; x < 480; x += 90) {
+        const n = Math.floor(hash(x) * 20);
+        g.fillStyle = t.hedgeDark;
+        g.fillRect(x + n, 42, 1, 4);
+        g.fillRect(x + n - 2, 43, 1, 3);
+        g.fillRect(x + n + 2, 43, 1, 3);
+      }
+      return c;
+    }
     // 街路レベルのベース壁（プロムナードの植栽＋柵）
     g.fillStyle = t.wallBase;
     g.fillRect(0, 20, 480, 28);
@@ -377,16 +533,18 @@ export class Background {
           g.fillRect(Math.round(sx0) + stair, y, Math.round(sx1 - sx0), 1);
           break;
         case 'sand': {
-          g.fillStyle = t.sandA;
-          g.fillRect(Math.round(sx0), y, Math.round(sx1 - sx0), 1);
-          // 斑点
-          const n1 = hash(Math.floor(camX) * 0.37 + y * 7.3);
+          // 深い砂: 暗めの砂＋風紋。砂漠面でも「沈む場所」が判別できる
           g.fillStyle = t.sandB;
+          g.fillRect(Math.round(sx0), y, Math.round(sx1 - sx0), 1);
+          const n1 = hash(Math.floor(camX) * 0.37 + y * 7.3);
+          g.fillStyle = t.sandA;
           const spx = sx0 + n1 * (sx1 - sx0);
-          g.fillRect(Math.round(spx), y, 2, 1);
-          const n2 = hash(y * 13.7);
-          const spx2 = sx0 + n2 * (sx1 - sx0);
-          g.fillRect(Math.round(spx2), y, 1, 1);
+          g.fillRect(Math.round(spx), y, 3, 1);
+          if (y % 3 === 0) {
+            const n2 = hash(y * 13.7);
+            const spx2 = sx0 + n2 * (sx1 - sx0);
+            g.fillRect(Math.round(spx2), y, 2, 1);
+          }
           break;
         }
         case 'glare': {

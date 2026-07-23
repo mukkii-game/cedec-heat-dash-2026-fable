@@ -137,6 +137,159 @@ const DAY1_SONG: Song = {
   ],
 };
 
+/** DAY2「シェイド・ハンター」Dドリアン 140BPM 緊張感を増した追走ビート */
+const D2_KICK = 'x...x...x..x..x.';
+const D2_SNARE = '....x.......x...';
+const D2_HAT = 'xxx.xxx.xxx.xxxo';
+
+function bar2(kick = D2_KICK, snare = D2_SNARE, hat = D2_HAT) {
+  return { kick, snare, hat };
+}
+
+const DAY2_SONG: Song = {
+  bpm: 140,
+  swing: 0.03,
+  intro: [
+    { steps: 16, kick: D2_KICK, hat: 'x.x.x.x.x.x.x.x.', bass: 'D2 . D3 . D2 . D3 . D2 . D3 . C2 C2 D2 .' },
+  ],
+  loop: [
+    {
+      steps: 16,
+      ...bar2(),
+      bass: 'D2:2 D2:2 D3:2 D2:2 D2:2 D3:2 D2:2 C2:2',
+      lead: 'D5:3 C5:1 A4:2 F4:2 A4:3 C5:1 D5:2 E5:2',
+      arp: 'D3 F3 A3 F3 D3 F3 A3 F3 D3 F3 A3 F3 D3 F3 A3 F3',
+    },
+    {
+      steps: 16,
+      ...bar2(),
+      bass: 'F2:2 F2:2 F3:2 F2:2 F2:2 F3:2 F2:2 E2:2',
+      lead: 'F5:3 E5:1 C5:2 A4:2 C5:4 A4:4',
+      arp: 'F3 A3 C4 A3 F3 A3 C4 A3 F3 A3 C4 A3 F3 A3 C4 A3',
+    },
+    {
+      steps: 16,
+      ...bar2(),
+      bass: 'C2:2 C2:2 C3:2 C2:2 C2:2 C3:2 C2:2 B1:2',
+      lead: 'E5:3 D5:1 C5:2 G4:2 E4:3 G4:1 C5:4',
+      arp: 'C3 E3 G3 E3 C3 E3 G3 E3 C3 E3 G3 E3 C3 E3 G3 E3',
+    },
+    {
+      steps: 16,
+      ...bar2(),
+      bass: 'G2:2 G2:2 G3:2 G2:2 G2:2 G3:2 F2:2 E2:2',
+      lead: 'B4:2 D5:2 G5:3 F5:1 D5:2 B4:2 G4:4',
+      arp: 'G3 B3 D4 B3 G3 B3 D4 B3 G3 B3 D4 B3 G3 B3 D4 B3',
+    },
+    {
+      steps: 16,
+      ...bar2(),
+      bass: 'D2:2 D2:2 D3:2 D2:2 D2:2 D3:2 D2:2 C2:2',
+      lead: 'D5:3 C5:1 A4:2 F4:2 A4:2 C5:2 D5:4',
+      arp: 'D3 F3 A3 F3 D3 F3 A3 F3 D3 F3 A3 F3 D3 F3 A3 F3',
+    },
+    {
+      steps: 16,
+      ...bar2(),
+      bass: 'F2:2 F2:2 F3:2 F2:2 F2:2 F3:2 F2:2 G2:2',
+      lead: 'F5:2 G5:2 A5:3 G5:1 F5:2 E5:2 C5:4',
+      arp: 'F3 A3 C4 A3 F3 A3 C4 A3 F3 A3 C4 A3 F3 A3 C4 A3',
+    },
+    {
+      steps: 16,
+      ...bar2(),
+      bass: 'A2:2 A2:2 A3:2 A2:2 A2:2 A3:2 A2:2 G2:2',
+      lead: 'E5:3 C5:1 A4:2 B4:2 C5:2 B4:2 A4:4',
+      arp: 'A3 C4 E4 C4 A3 C4 E4 C4 A3 C4 E4 C4 A3 C4 E4 C4',
+    },
+    {
+      steps: 16,
+      kick: 'x...x...x..xx.xx',
+      snare: '....x.......x.xx',
+      hat: 'xxx.xxx.xxxxxxxo',
+      bass: 'G2:2 G2:2 G3:2 G2:2 A2:2 A3:2 B2:2 C3:2',
+      lead: 'G4 A4 B4 C5 D5:2 E5:2 F5:2 G5:2 D5:2 B4:2',
+      arp: 'G3 B3 D4 B3 G3 B3 D4 B3 A3 C4 E4 C4 B3 D4 F4 D4',
+    },
+  ],
+};
+
+/** DAY3「ミナトミライ・ミラージュ」Eフリジアン・ドミナント 148BPM 砂漠の熱狂 */
+const D3_KICK = 'x..x.x..x..x.x..';
+const D3_SNARE = '....x.......x...';
+const D3_HAT = 'x.x.x.xxx.x.x.xo';
+
+function bar3(kick = D3_KICK, snare = D3_SNARE, hat = D3_HAT) {
+  return { kick, snare, hat };
+}
+
+const DAY3_SONG: Song = {
+  bpm: 148,
+  intro: [
+    { steps: 16, kick: D3_KICK, hat: 'x.x.x.x.x.x.x.x.', bass: 'E2 . E2 E3 . E2 . E3 E2 . E2 F2 E2 . B1 .' },
+  ],
+  loop: [
+    {
+      steps: 16,
+      ...bar3(),
+      bass: 'E2 . E2 E3 . E2 . E3 E2 . E2 F2 E2 . B1 .',
+      lead: 'E5:2 F5:2 E5:2 D5:2 C5:2 B4:2 C5:2 B4:2',
+      arp: 'E3 G#3 B3 G#3 E3 G#3 B3 G#3 E3 G#3 B3 G#3 E3 G#3 B3 G#3',
+    },
+    {
+      steps: 16,
+      ...bar3(),
+      bass: 'E2 . E2 E3 . E2 . E3 F2 . F2 F3 . E2 . D2',
+      lead: 'G#4:2 A4:2 B4:2 C5:2 B4:3 A4:1 G#4:2 E4:2',
+      arp: 'E3 G#3 B3 G#3 E3 G#3 B3 G#3 F3 A3 C4 A3 F3 A3 C4 A3',
+    },
+    {
+      steps: 16,
+      ...bar3(),
+      bass: 'E2 . E2 E3 . E2 . E3 E2 . E2 F2 E2 . B1 .',
+      lead: 'E5:2 F5:2 G#5:3 F5:1 E5:2 D5:2 C5:2 D5:2',
+      arp: 'E3 G#3 B3 G#3 E3 G#3 B3 G#3 E3 G#3 B3 G#3 E3 G#3 B3 G#3',
+    },
+    {
+      steps: 16,
+      ...bar3(),
+      bass: 'G2 . G2 G3 . G2 . G3 F2 . F2 F3 E2 E2 E3 .',
+      lead: 'B4:2 C5:2 B4:2 A4:2 G#4:3 A4:1 B4:4',
+      arp: 'G3 B3 D4 B3 G3 B3 D4 B3 F3 A3 C4 A3 E3 G#3 B3 G#3',
+    },
+    {
+      steps: 16,
+      ...bar3(),
+      bass: 'E2 . E2 E3 . E2 . E3 E2 . E2 F2 E2 . B1 .',
+      lead: 'E5 . E5 . F5:2 E5:2 D5:2 C5:2 D5:2 C5:2',
+      arp: 'E4 G#4 B4 G#4 E4 G#4 B4 G#4 E4 G#4 B4 G#4 E4 G#4 B4 G#4',
+    },
+    {
+      steps: 16,
+      ...bar3(),
+      bass: 'E2 . E2 E3 . E2 . E3 F2 . F2 F3 . E2 . D2',
+      lead: 'B4:2 C5:2 D5:2 C5:2 B4:2 A4:2 G#4:4',
+      arp: 'E4 G#4 B4 G#4 E4 G#4 B4 G#4 F4 A4 C5 A4 F4 A4 C5 A4',
+    },
+    {
+      steps: 16,
+      ...bar3(),
+      bass: 'A2 . A2 A3 . A2 . A3 A2 . A2 B2 A2 . E2 .',
+      lead: 'A4:2 B4:2 C5:2 D5:2 E5:2 F5:2 E5:2 D5:2',
+      arp: 'A3 C4 E4 C4 A3 C4 E4 C4 A3 C4 E4 C4 A3 C4 E4 C4',
+    },
+    {
+      steps: 16,
+      kick: 'x..x.x..x.xxx.xx',
+      snare: '....x.....x.x.xx',
+      hat: 'x.x.x.xxxxx.xxxo',
+      bass: 'E2 E2 E3 E2 F2 F2 F3 F2 G2 G2 G#2 G#2 B2 B2 B1 .',
+      lead: 'E5 F5 G#5 A5 B5:2 . B5:2 . A5:2 G#5:2 F5:2',
+      arp: 'E4 G#4 B4 G#4 F4 A4 C5 A4 G4 B4 D5 B4 B3 D#4 F#4 D#4',
+    },
+  ],
+};
+
 /** タイトル「フェスの朝」ゆったりチップ */
 const TITLE_SONG: Song = {
   bpm: 104,
@@ -237,9 +390,11 @@ const ED_SONG: Song = {
   ],
 };
 
-export type SongName = 'day1' | 'title' | 'goal' | 'gameover' | 'ed';
+export type SongName = 'day1' | 'day2' | 'day3' | 'title' | 'goal' | 'gameover' | 'ed';
 const SONGS: Record<SongName, Song> = {
   day1: DAY1_SONG,
+  day2: DAY2_SONG,
+  day3: DAY3_SONG,
   title: TITLE_SONG,
   goal: GOAL_JINGLE,
   gameover: GAMEOVER_JINGLE,

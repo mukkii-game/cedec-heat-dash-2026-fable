@@ -450,6 +450,56 @@ const GULL_B = [
 ];
 const GULL_P = { w: '#f5f1e8', y: '#f2a33c' };
 
+// 回転草（左へ転がる）2フレーム
+const TUMBLE_A = [
+  '...kkkk....',
+  '..kgddgk...',
+  '.kdgddgdk..',
+  'kgddkddgdk.',
+  'kddgddkddk.',
+  'kgdkgddgdk.',
+  '.kdgddgdk..',
+  '..kgddgk...',
+  '...kkkk....',
+];
+const TUMBLE_B = [
+  '...kkkk....',
+  '..kdgdgk...',
+  '.kgddkdgk..',
+  'kddgddgddk.',
+  'kgdkddgdgk.',
+  'kddgdkddgk.',
+  '.kgddgdgk..',
+  '..kddgdk...',
+  '...kkkk....',
+];
+const TUMBLE_P = { d: '#b08850', g: '#8a6a42' };
+
+// 砂丘（小）: 踏むと大減速、ジャンプで越える
+const DUNE = [
+  '........kkkkkk........',
+  '......kkssssssk.......',
+  '....kkssssssSSSk......',
+  '..kkssssssssSSSSk.....',
+  'kkssssssssssssSSSSkk..',
+];
+const DUNE_P = { s: '#f2cd86', S: '#d9a45c' };
+
+// スーツケース（旅行者の隣に置く）
+const SUITCASE = [
+  '...kk.....',
+  '...kk.....',
+  '..kkkkkk..',
+  '.kcccccck.',
+  '.kcCccCck.',
+  '.kcccccck.',
+  '.kcCccCck.',
+  '.kcccccck.',
+  '..kkkkkk..',
+  '..kw.._wk.',
+];
+const SUITCASE_P = { c: '#7a68c8', C: '#54489a', _: '#221833' };
+
 // 配達台車（歩道を縦断する）
 const CART = [
   '..kkkkk.kkkkk...',
@@ -540,6 +590,9 @@ export interface SpriteBank {
   gull: Sprite[];
   cardman: Sprite;
   cart: Sprite;
+  tumbleweed: Sprite[];
+  dune: Sprite;
+  suitcase: Sprite;
   sign: Sprite;
   peds: Sprite[][]; // [variant][frame]
 }
@@ -651,6 +704,9 @@ export function buildSprites(): SpriteBank {
     gull: [mk(GULL_A, GULL_P), mk(GULL_B, GULL_P)],
     cardman: mk(CARDMAN, CARDMAN_P),
     cart: mk(CART, CART_P),
+    tumbleweed: [mk(TUMBLE_A, TUMBLE_P), mk(TUMBLE_B, TUMBLE_P)],
+    dune: mk(DUNE, DUNE_P),
+    suitcase: mk(SUITCASE, SUITCASE_P),
     sign: mk(SIGN, SIGN_P),
     peds,
   };

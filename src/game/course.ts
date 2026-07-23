@@ -53,7 +53,7 @@ export interface LaserDef {
 }
 
 export type WallDecor =
-  | { kind: 'sign'; x: number; text: string; icon?: 'updown' | 'jump' | 'goal' | 'none' }
+  | { kind: 'sign'; x: number; text: string; icon?: 'updown' | 'jump' | 'goal' | 'warn' | 'none' }
   | { kind: 'store'; x: number } // 入口中心x
   | { kind: 'tree'; x: number }
   | { kind: 'awning'; x: number; w: number }
@@ -144,7 +144,7 @@ export const DAY1: Course = {
     { kind: 'banner', x: 118, text: 'CEDEC 2026 →' },
     { kind: 'vending', x: 133 },
     { kind: 'tree', x: 155 },
-    { kind: 'sign', x: 172, text: '!', icon: 'none' },
+    { kind: 'sign', x: 172, text: '日射注意', icon: 'warn' },
     { kind: 'awning', x: 196, w: 26 },
     { kind: 'store', x: 216 },
     { kind: 'banner', x: 240, text: 'あと50m' },
@@ -153,4 +153,180 @@ export const DAY1: Course = {
   ],
 };
 
-export const COURSES: Record<number, Course> = { 1: DAY1 };
+// ==================================================
+// DAY 2: 猛暑日。人も増えた。 400m / 制限75秒
+// S0 朝 → S1 混雑 → S2 照り返し直線 → S3 砂の侵食 → S4 レーザー連続 → S5 ラスト
+// ==================================================
+export const DAY2: Course = {
+  day: 2,
+  length: 400,
+  limit: 75,
+  par: { s: 38, a: 45, b: 58 },
+  zones: [
+    // S0: 朝でも既に暑い。短い日陰
+    { kind: 'shade', x0: 16, x1: 36, z0: 0, z1: 0.4, shear: -6 },
+    // S1: 混雑区間。日陰は手前側ひさし（人が多い）
+    { kind: 'shade', x0: 62, x1: 86, z0: 0.6, z1: 1, shear: -4 },
+    { kind: 'shade', x0: 106, x1: 126, z0: 0, z1: 0.35, shear: -6 },
+    // S2: 照り返しの中央直線（最速レーン、ただし灼熱）
+    { kind: 'glare', x0: 146, x1: 206, z0: 0.3, z1: 0.7 },
+    { kind: 'shade', x0: 168, x1: 182, z0: 0, z1: 0.22, shear: -5 },
+    // S3: 砂の侵食が始まる
+    { kind: 'sand', x0: 218, x1: 240, z0: 0.55, z1: 1 },
+    { kind: 'sand', x0: 246, x1: 270, z0: 0, z1: 0.45 },
+    { kind: 'shade', x0: 282, x1: 300, z0: 0.55, z1: 1, shear: -4 },
+    // S4: レーザー連続区間の小さな影の島
+    { kind: 'shade', x0: 330, x1: 344, z0: 0, z1: 0.28, shear: -6 },
+    // S5: ゴール前ミスト
+    { kind: 'mist', x0: 388, x1: 393, z0: 0, z1: 1 },
+  ],
+  obs: [
+    // S0
+    { type: 'cone', x: 24, z: 0.7 },
+    { type: 'ped', x: 40, z: 0.5, v: -0.5, variant: 0, zAmp: 0.15 },
+    // S1: 混雑。ひさし日陰側に人が密集
+    { type: 'ped', x: 64, z: 0.75, v: -0.6, variant: 2 },
+    { type: 'ped', x: 72, z: 0.9, v: 0.4, variant: 3 },
+    { type: 'suitcase', x: 80, z: 0.68, v: -0.3, variant: 1 },
+    { type: 'ped', x: 90, z: 0.3, v: -0.7, variant: 0, zAmp: 0.2 },
+    { type: 'cart', x: 98, z: 0.5, v: 1.0 },
+    { type: 'ped', x: 112, z: 0.18, v: 0.5, variant: 2 },
+    { type: 'suitcase', x: 120, z: 0.55, v: -0.4, variant: 3 },
+    { type: 'cardman', x: 130, z: 0.32 },
+    { type: 'drink', x: 100, z: 0.08 },
+    // S2: 照り返し直線。中央が速いが熱い。缶は照り返しの中
+    { type: 'ped', x: 152, z: 0.12, v: -0.5, variant: 1 },
+    { type: 'planter', x: 164, z: 0.85 },
+    { type: 'energy', x: 186, z: 0.5 },
+    { type: 'ped', x: 196, z: 0.88, v: 0.4, variant: 0 },
+    { type: 'gull', x: 176, z: 0.4 },
+    // S3: 砂の縫い目
+    { type: 'dune', x: 228, z: 0.35 },
+    { type: 'coolbox', x: 240, z: 0.9 },
+    { type: 'dune', x: 256, z: 0.75 },
+    { type: 'ped', x: 264, z: 0.6, v: -0.4, variant: 3, zAmp: 0.18 },
+    { type: 'drink', x: 274, z: 0.15 },
+    { type: 'gull', x: 288, z: 0.3 },
+    // S4: レーザー連続（影の島か速度調整で抜ける）
+    { type: 'ped', x: 316, z: 0.7, v: 0.3, variant: 2 },
+    { type: 'tumbleweed', x: 348, z: 0.5 },
+    // S5
+    { type: 'cone', x: 372, z: 0.45 },
+    { type: 'drink', x: 380, z: 0.8 },
+  ],
+  lasers: [
+    // 手前側→奥側と交互に落ちる。影の島 or 速度計画で回避
+    { x: 182, halfW: 5, z0: 0.45, z1: 1, triggerX: 158 },
+    { x: 322, halfW: 5, z0: 0.45, z1: 1, triggerX: 300 },
+    { x: 352, halfW: 6, z0: 0, z1: 0.6, triggerX: 328 },
+  ],
+  stores: [212, 358],
+  wall: [
+    { kind: 'station', x: -8 },
+    { kind: 'banner', x: 20, text: '熱中症警戒アラート発令中' },
+    { kind: 'tree', x: 44 },
+    { kind: 'awning', x: 74, w: 24 },
+    { kind: 'vending', x: 95 },
+    { kind: 'tree', x: 116 },
+    { kind: 'banner', x: 146, text: 'CEDEC 2026 →' },
+    { kind: 'sign', x: 160, text: '照り返し', icon: 'warn' },
+    { kind: 'awning', x: 175, w: 14 },
+    { kind: 'store', x: 212 },
+    { kind: 'sign', x: 224, text: '砂?', icon: 'warn' },
+    { kind: 'palm', x: 250 },
+    { kind: 'tree', x: 290 },
+    { kind: 'sign', x: 300, text: '連続日射', icon: 'warn' },
+    { kind: 'awning', x: 337, w: 14 },
+    { kind: 'store', x: 358 },
+    { kind: 'banner', x: 375, text: 'あと25m がんばれ' },
+    { kind: 'sign', x: 392, text: 'GOAL', icon: 'goal' },
+  ],
+};
+
+// ==================================================
+// DAY 3: みなとみらい砂漠。 500m / 制限90秒
+// 砂の間を縫い、蜃気楼に騙され、スイープレーザーを読み、
+// 最後はヒート残量で日向の長い直線を走り切る「熱走ラストラン」
+// ==================================================
+export const DAY3: Course = {
+  day: 3,
+  length: 500,
+  limit: 90,
+  par: { s: 44, a: 52, b: 68 },
+  zones: [
+    // 砂のフィールド（縫って走る）
+    { kind: 'sand', x0: 30, x1: 62, z0: 0.45, z1: 1 },
+    { kind: 'sand', x0: 74, x1: 108, z0: 0, z1: 0.5 },
+    { kind: 'shade', x0: 118, x1: 132, z0: 0.6, z1: 1, shear: -4 },
+    { kind: 'sand', x0: 140, x1: 172, z0: 0.35, z1: 1 },
+    // 蜃気楼1: 本物そっくりの偽日陰（近づくと消える）
+    { kind: 'mirage', x0: 150, x1: 168, z0: 0, z1: 0.3 },
+    { kind: 'shade', x0: 180, x1: 196, z0: 0, z1: 0.3, shear: -6 },
+    { kind: 'sand', x0: 210, x1: 240, z0: 0, z1: 0.55 },
+    // オアシス
+    { kind: 'mist', x0: 250, x1: 256, z0: 0.3, z1: 0.7 },
+    { kind: 'sand', x0: 262, x1: 300, z0: 0.5, z1: 1 },
+    // 蜃気楼2
+    { kind: 'mirage', x0: 306, x1: 322, z0: 0.55, z1: 0.9 },
+    { kind: 'shade', x0: 338, x1: 352, z0: 0.6, z1: 1, shear: -4 },
+    { kind: 'sand', x0: 360, x1: 396, z0: 0, z1: 0.45 },
+    { kind: 'shade', x0: 406, x1: 418, z0: 0, z1: 0.25, shear: -6 },
+    // 熱走ラストラン: 440-500 は日向のみ。残ヒートが攻め幅
+  ],
+  obs: [
+    { type: 'dune', x: 46, z: 0.25 },
+    { type: 'tumbleweed', x: 70, z: 0.6 },
+    { type: 'ped', x: 90, z: 0.75, v: -0.4, variant: 0, zAmp: 0.15 },
+    { type: 'dune', x: 116, z: 0.3 },
+    { type: 'gull', x: 136, z: 0.5 },
+    { type: 'tumbleweed', x: 158, z: 0.2 },
+    { type: 'coolbox', x: 176, z: 0.7 },
+    { type: 'drink', x: 190, z: 0.15 },
+    { type: 'dune', x: 222, z: 0.8 },
+    { type: 'tumbleweed', x: 236, z: 0.45 },
+    { type: 'suitcase', x: 258, z: 0.15, v: -0.3, variant: 1 },
+    { type: 'ped', x: 282, z: 0.35, v: 0.4, variant: 2, zAmp: 0.2 },
+    { type: 'dune', x: 296, z: 0.2 },
+    { type: 'gull', x: 316, z: 0.7 },
+    { type: 'drink', x: 330, z: 0.85 },
+    { type: 'cart', x: 346, z: 0.5, v: 0.9 },
+    { type: 'dune', x: 372, z: 0.7 },
+    { type: 'tumbleweed', x: 388, z: 0.35 },
+    { type: 'cardman', x: 414, z: 0.55 },
+    { type: 'energy', x: 428, z: 0.1 },
+    // 熱走ラストラン: 障害は薄く、ヒートとの勝負
+    { type: 'dune', x: 452, z: 0.5 },
+    { type: 'drink', x: 466, z: 0.25 },
+    { type: 'tumbleweed', x: 480, z: 0.6 },
+  ],
+  lasers: [
+    { x: 100, halfW: 5, z0: 0, z1: 0.5, triggerX: 78 },
+    // スイープ型: 奥から手前へ薙ぎ払う
+    { x: 214, halfW: 6, z0: 0, z1: 1, triggerX: 190, sweep: true },
+    { x: 312, halfW: 5, z0: 0.4, z1: 1, triggerX: 290 },
+    { x: 434, halfW: 7, z0: 0, z1: 1, triggerX: 408, sweep: true },
+  ],
+  stores: [204, 364],
+  wall: [
+    { kind: 'station', x: -8 },
+    { kind: 'banner', x: 14, text: 'みなとみらい砂漠 横断注意' },
+    { kind: 'palm', x: 40 },
+    { kind: 'palm', x: 92 },
+    { kind: 'sign', x: 124, text: 'オアシスまで 126m', icon: 'none' },
+    { kind: 'palm', x: 156 },
+    { kind: 'sign', x: 186, text: '蜃気楼多発', icon: 'warn' },
+    { kind: 'store', x: 204 },
+    { kind: 'palm', x: 246 },
+    { kind: 'vending', x: 254 },
+    { kind: 'palm', x: 292 },
+    { kind: 'sign', x: 330, text: 'スイープ日射', icon: 'warn' },
+    { kind: 'palm', x: 344 },
+    { kind: 'store', x: 364 },
+    { kind: 'banner', x: 404, text: 'ラスト100m 走りきれ' },
+    { kind: 'palm', x: 442 },
+    { kind: 'palm', x: 470 },
+    { kind: 'sign', x: 492, text: 'GOAL', icon: 'goal' },
+  ],
+};
+
+export const COURSES: Record<number, Course> = { 1: DAY1, 2: DAY2, 3: DAY3 };

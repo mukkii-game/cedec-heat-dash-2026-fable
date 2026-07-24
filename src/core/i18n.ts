@@ -4,7 +4,7 @@ export type Lang = 'ja' | 'en';
 
 const STR: Record<string, [string, string]> = {
   // タイトル
-  'title.sub': ['めざせCEDEC', 'HEAT DASH'],
+  'title.sub': ['めざせパシフィコ', 'GO TO PACIFICO'],
   'title.press': ['タップ / SPACE でスタート', 'TAP / SPACE TO START'],
 
   // OP
@@ -23,7 +23,7 @@ const STR: Record<string, [string, string]> = {
   'op.skip': ['タップでスキップ', 'TAP TO SKIP'],
 
   // ステージイントロ / チェックポイント（WAVE1〜3、旧DAY1〜3が母体）
-  'wave1.title': ['めざせCEDEC', 'HEAT DASH'],
+  'wave1.title': ['めざせパシフィコ', 'GO TO PACIFICO'],
   'wave1.sub': ['みなとみらい、晴れ。', 'Minatomirai. Sunny.'],
   'wave1.tip': ['日陰はすずしい。でも、ちょっと遅い。', 'Shade keeps you cool... but slow.'],
   'wave2.title': ['WAVE 2', 'WAVE 2'],

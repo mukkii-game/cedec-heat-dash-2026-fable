@@ -406,7 +406,7 @@ const CREDITS: [string, string][] = [
   ['水分 / 塩分 / 日陰のみなさん', 'WATER / SALT / ALL SHADES'],
   ['そして走った あなた', 'AND YOU, WHO RAN'],
   ['', ''],
-  ['あなたは、めざせCEDECを走り抜いた。', 'You ran the whole way to CEDEC.'],
+  ['あなたは、めざせパシフィコを走り抜いた。', 'You ran the whole way to Pacifico.'],
 ];
 
 export class EdScene implements Scene {

@@ -22,13 +22,11 @@ export interface Ctx {
   audio: AudioSys;
   music: MusicPlayer;
   sprites: SpriteBank;
-  /** 通しプレイ中の各日タイム */
-  runTimes: number[];
-  fullRun: boolean;
   gotoTitle(): void;
   gotoOp(): void;
-  gotoStage(day: number, fullRun: boolean): void;
-  gotoResult(day: number, time: number, stars: number, isBest: boolean): void;
+  /** startWave省略時は1（通しプレイの最初）から。デバッグ用?wave=Nでの直行にも使う */
+  gotoStage(startWave?: number): void;
+  gotoResult(time: number, stars: number, isBest: boolean): void;
   gotoEd(): void;
   toggleMute(): void;
 }

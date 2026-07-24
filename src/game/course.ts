@@ -39,6 +39,8 @@ export interface ObDef {
   zAmp?: number;
   /** ped: 見た目バリエーション */
   variant?: number;
+  /** ped: 集団の代表に立てると、通過時に横浜ネタの雑談吹き出しを出す */
+  chat?: boolean;
 }
 
 export interface LaserDef {
@@ -64,8 +66,8 @@ export type WallDecor =
   | { kind: 'palm'; x: number }
   | { kind: 'vending'; x: number };
 
-export interface Course {
-  day: 1 | 2 | 3;
+/** 単一コースを構成する素材（zones/obs等）。単体ではWaveメタ情報を持たない */
+export interface CourseSection {
   length: number;
   /** ★評価の基準タイム(s)。s以下=★3、a以下=★2、それより遅くてもクリアなら★1 */
   par: { s: number; a: number };
@@ -77,13 +79,27 @@ export interface Course {
   wall: WallDecor[];
 }
 
+/** 通しステージ内のチェックポイント区間（旧DAY1〜3に相当） */
+export interface Wave {
+  n: 1 | 2 | 3;
+  /** このWaveが始まる通し座標(m) */
+  startX: number;
+  theme: 1 | 2 | 3;
+  song: 'day1' | 'day2' | 'day3';
+  label: string;
+}
+
+/** 実際にプレイされる通しコース。CourseSectionを3つつなげて構成する */
+export interface Course extends CourseSection {
+  waves: Wave[];
+}
+
 // ==================================================
-// DAY 1: みなとみらい、晴れ。 290m / 制限60秒
+// WAVE 1 素材: みなとみらい、晴れ。 290m
 // S0 駅前 → S1 並木の選択 → S2 観光客の波 → S3 ビル風の谷(初レーザー+コンビニ)
 // → S4 ラストスパート(日向直進 vs 日陰迂回)
 // ==================================================
-export const DAY1: Course = {
-  day: 1,
+const WAVE1_SRC: CourseSection = {
   length: 290,
   par: { s: 28, a: 33 },
   zones: [
@@ -101,6 +117,8 @@ export const DAY1: Course = {
     { kind: 'mist', x0: 280, x1: 285, z0: 0, z1: 1 },
   ],
   obs: [
+    // S0: 単発でぽつんと立ち話している人（動かない。密度の「疎」を担う）
+    { type: 'ped', x: 20, z: 0.35, v: 0, variant: 2 },
     // S0: 初障害物（ジャンプでも迂回でも良い）
     { type: 'cone', x: 32, z: 0.75 },
     // S1: 日陰側の観光客
@@ -137,10 +155,11 @@ export const DAY1: Course = {
   ],
   stores: [216],
   wall: [
-    { kind: 'station', x: -8 },
-    { kind: 'sign', x: 8, text: '↑↓', icon: 'updown' },
-    { kind: 'sign', x: 15, text: 'JUMP', icon: 'jump' },
-    { kind: 'tree', x: 30 },
+    // 駅舎はスタート時に画面内へしっかり収まる位置に（看板がはっきり見えるよう）
+    { kind: 'station', x: 2 },
+    { kind: 'sign', x: 20, text: '↑↓', icon: 'updown' },
+    { kind: 'sign', x: 30, text: 'JUMP', icon: 'jump' },
+    { kind: 'tree', x: 44 },
     { kind: 'tree', x: 62 },
     { kind: 'tree', x: 80 },
     { kind: 'tree', x: 97 },
@@ -152,16 +171,15 @@ export const DAY1: Course = {
     { kind: 'store', x: 216 },
     { kind: 'banner', x: 240, text: 'あと50m' },
     { kind: 'awning', x: 258, w: 32 },
-    { kind: 'sign', x: 282, text: 'GOAL', icon: 'goal' },
+    { kind: 'sign', x: 282, text: 'WAVE 1 CLEAR!', icon: 'goal' },
   ],
 };
 
 // ==================================================
-// DAY 2: 猛暑日。人も増えた。 400m / 制限75秒
+// WAVE 2 素材: 猛暑日。人も増えた。 400m
 // S0 朝 → S1 混雑 → S2 照り返し直線 → S3 砂の侵食 → S4 レーザー連続 → S5 ラスト
 // ==================================================
-export const DAY2: Course = {
-  day: 2,
+const WAVE2_SRC: CourseSection = {
   length: 400,
   par: { s: 38, a: 45 },
   zones: [
@@ -196,13 +214,18 @@ export const DAY2: Course = {
     { type: 'suitcase', x: 120, z: 0.55, v: -0.4, variant: 3 },
     { type: 'cardman', x: 130, z: 0.32 },
     { type: 'drink', x: 100, z: 0.08 },
-    // 買い物帰りの3人組（横並びで塞ぐ集団。z幅が広く一気には抜けられない）
-    { type: 'ped', x: 140, z: 0.28, v: -0.3, variant: 1 },
+    // 買い物帰りの3人組（横並びで塞ぐ集団。ぎゅっと密集していて一気には抜けられない）
+    { type: 'ped', x: 140, z: 0.34, v: -0.3, variant: 1, chat: true },
     { type: 'ped', x: 141, z: 0.46, v: -0.3, variant: 3 },
-    { type: 'ped', x: 142, z: 0.64, v: -0.3, variant: 0 },
+    { type: 'ped', x: 142, z: 0.58, v: -0.3, variant: 0 },
+    // すぐ後ろにもう一組続き、この一帯だけ「やたらおおい」密度にする
+    { type: 'ped', x: 144, z: 0.3, v: -0.35, variant: 2 },
+    { type: 'ped', x: 145, z: 0.44, v: -0.35, variant: 0 },
     // S2: 照り返し直線。中央が速いが熱い。缶は照り返しの中
     { type: 'ped', x: 152, z: 0.12, v: -0.5, variant: 1 },
     { type: 'planter', x: 164, z: 0.85 },
+    // 単発でぽつんと立って光る床を眺めている人（動かない）
+    { type: 'ped', x: 170, z: 0.15, v: 0, variant: 3 },
     { type: 'energy', x: 186, z: 0.5 },
     { type: 'ped', x: 196, z: 0.88, v: 0.4, variant: 0 },
     { type: 'gull', x: 176, z: 0.4 },
@@ -218,10 +241,16 @@ export const DAY2: Course = {
     { type: 'ped', x: 316, z: 0.7, v: 0.3, variant: 2 },
     { type: 'tumbleweed', x: 348, z: 0.5 },
     // S5: レーザー地帯を抜けた後の開けた直線でもうひと押し
+    // もう一組、密集した3人組（コンビニ帰りの井戸端会議）
+    { type: 'ped', x: 366, z: 0.32, v: -0.3, variant: 2, chat: true },
+    { type: 'ped', x: 367, z: 0.44, v: -0.3, variant: 0 },
+    { type: 'ped', x: 368, z: 0.56, v: -0.3, variant: 3 },
     { type: 'cone', x: 372, z: 0.45 },
     { type: 'brick', x: 380, z: 0.35, v: 2.8 },
     { type: 'drink', x: 384, z: 0.8 },
+    // 迷惑キックボード女子、2台同時に爆走（単発でなく「たくさん一度に」の例）
     { type: 'kickboard', x: 392, z: 0.55, zAmp: 0.3, v: 3.4 },
+    { type: 'kickboard', x: 397, z: 0.2, zAmp: 0.24, v: 3.7 },
   ],
   lasers: [
     // 手前側→奥側と交互に落ちる。影の島 or 速度計画で回避
@@ -231,7 +260,6 @@ export const DAY2: Course = {
   ],
   stores: [212, 358],
   wall: [
-    { kind: 'station', x: -8 },
     { kind: 'banner', x: 20, text: '熱中症警戒アラート発令中' },
     { kind: 'tree', x: 44 },
     { kind: 'awning', x: 74, w: 24 },
@@ -248,17 +276,16 @@ export const DAY2: Course = {
     { kind: 'awning', x: 337, w: 14 },
     { kind: 'store', x: 358 },
     { kind: 'banner', x: 375, text: 'あと25m がんばれ' },
-    { kind: 'sign', x: 392, text: 'GOAL', icon: 'goal' },
+    { kind: 'sign', x: 392, text: 'WAVE 2 CLEAR!', icon: 'goal' },
   ],
 };
 
 // ==================================================
-// DAY 3: みなとみらい砂漠。 500m / 制限90秒
+// WAVE 3 素材: みなとみらい砂漠。 500m
 // 砂の間を縫い、蜃気楼に騙され、スイープレーザーを読み、
 // 最後はヒート残量で日向の長い直線を走り切る「熱走ラストラン」
 // ==================================================
-export const DAY3: Course = {
-  day: 3,
+const WAVE3_SRC: CourseSection = {
   length: 500,
   par: { s: 44, a: 52 },
   zones: [
@@ -291,14 +318,19 @@ export const DAY3: Course = {
     { type: 'tumbleweed', x: 158, z: 0.2 },
     { type: 'coolbox', x: 176, z: 0.7 },
     { type: 'drink', x: 190, z: 0.15 },
+    // 単発でぽつんと立って砂丘を撮影している人（動かない）
+    { type: 'ped', x: 200, z: 0.85, v: 0, variant: 1 },
     // ここから先(190-214)はスイープ日射レーザーの通り道。新ギミックは詰め込まない
     { type: 'dune', x: 222, z: 0.8 },
     { type: 'tumbleweed', x: 236, z: 0.45 },
+    // 迷惑キックボード女子、2台同時に横並びで爆走
+    { type: 'kickboard', x: 240, z: 0.28, zAmp: 0.2, v: 3.8 },
+    { type: 'kickboard', x: 246, z: 0.72, zAmp: 0.2, v: 4.0 },
     { type: 'suitcase', x: 258, z: 0.15, v: -0.3, variant: 1 },
-    // 砂漠を渡る旅行者の集団（3人、影を求めて固まって歩く）
-    { type: 'ped', x: 270, z: 0.32, v: -0.25, variant: 1 },
-    { type: 'ped', x: 271, z: 0.5, v: -0.25, variant: 0 },
-    { type: 'ped', x: 272, z: 0.68, v: -0.25, variant: 3 },
+    // 砂漠を渡る旅行者の集団（3人、影を求めて肩を寄せ合い固まって歩く）
+    { type: 'ped', x: 270, z: 0.36, v: -0.25, variant: 1, chat: true },
+    { type: 'ped', x: 271, z: 0.48, v: -0.25, variant: 0 },
+    { type: 'ped', x: 272, z: 0.6, v: -0.25, variant: 3 },
     { type: 'ped', x: 282, z: 0.35, v: 0.4, variant: 2, zAmp: 0.2 },
     { type: 'dune', x: 296, z: 0.2 },
     { type: 'gull', x: 316, z: 0.7 },
@@ -309,8 +341,10 @@ export const DAY3: Course = {
     { type: 'dune', x: 372, z: 0.7 },
     { type: 'brick', x: 380, z: 0.4, v: 3.4 },
     { type: 'tumbleweed', x: 388, z: 0.35 },
-    { type: 'ped', x: 398, z: 0.22, v: -0.2, variant: 0 },
-    { type: 'ped', x: 399, z: 0.4, v: -0.2, variant: 2 },
+    // もう一組、密集3人組
+    { type: 'ped', x: 398, z: 0.3, v: -0.2, variant: 0, chat: true },
+    { type: 'ped', x: 399, z: 0.42, v: -0.2, variant: 2 },
+    { type: 'ped', x: 400, z: 0.54, v: -0.2, variant: 1 },
     // ここから先(408-434)はスイープ日射レーザーの通り道。新ギミックは詰め込まない
     { type: 'cardman', x: 414, z: 0.55 },
     { type: 'energy', x: 428, z: 0.1 },
@@ -328,7 +362,6 @@ export const DAY3: Course = {
   ],
   stores: [204, 364],
   wall: [
-    { kind: 'station', x: -8 },
     { kind: 'banner', x: 14, text: 'みなとみらい砂漠 横断注意' },
     { kind: 'palm', x: 40 },
     { kind: 'palm', x: 92 },
@@ -349,4 +382,47 @@ export const DAY3: Course = {
   ],
 };
 
-export const COURSES: Record<number, Course> = { 1: DAY1, 2: DAY2, 3: DAY3 };
+// ==================================================
+// 3区間(WAVE1〜3)を1本の通しコースに連結する。
+// 各素材は元々0起点で設計されているため、開始座標ぶんだけx/x0/x1/triggerX等を
+// オフセットしてから結合する（レベルデザイン自体は素材側を編集すれば良い）。
+// ==================================================
+function offsetZones(zs: Zone[], dx: number): Zone[] {
+  return zs.map((z) => ({ ...z, x0: z.x0 + dx, x1: z.x1 + dx }));
+}
+function offsetObs(os: ObDef[], dx: number): ObDef[] {
+  return os.map((o) => ({ ...o, x: o.x + dx }));
+}
+function offsetLasers(ls: LaserDef[], dx: number): LaserDef[] {
+  return ls.map((l) => ({ ...l, x: l.x + dx, triggerX: l.triggerX + dx }));
+}
+function offsetWall(ws: WallDecor[], dx: number): WallDecor[] {
+  return ws.map((w) => ({ ...w, x: w.x + dx }));
+}
+
+const WAVE2_OFFSET = WAVE1_SRC.length;
+const WAVE3_OFFSET = WAVE2_OFFSET + WAVE2_SRC.length;
+const TOTAL_LENGTH = WAVE3_OFFSET + WAVE3_SRC.length;
+
+/** 通しプレイ用のメインコース。3日分を足した1本の長いステージ（WAVE1〜3） */
+export const MAIN: Course = {
+  length: TOTAL_LENGTH,
+  par: {
+    s: WAVE1_SRC.par.s + WAVE2_SRC.par.s + WAVE3_SRC.par.s,
+    a: WAVE1_SRC.par.a + WAVE2_SRC.par.a + WAVE3_SRC.par.a,
+  },
+  zones: [...WAVE1_SRC.zones, ...offsetZones(WAVE2_SRC.zones, WAVE2_OFFSET), ...offsetZones(WAVE3_SRC.zones, WAVE3_OFFSET)],
+  obs: [...WAVE1_SRC.obs, ...offsetObs(WAVE2_SRC.obs, WAVE2_OFFSET), ...offsetObs(WAVE3_SRC.obs, WAVE3_OFFSET)],
+  lasers: [
+    ...WAVE1_SRC.lasers,
+    ...offsetLasers(WAVE2_SRC.lasers, WAVE2_OFFSET),
+    ...offsetLasers(WAVE3_SRC.lasers, WAVE3_OFFSET),
+  ],
+  stores: [...WAVE1_SRC.stores, ...WAVE2_SRC.stores.map((s) => s + WAVE2_OFFSET), ...WAVE3_SRC.stores.map((s) => s + WAVE3_OFFSET)],
+  wall: [...WAVE1_SRC.wall, ...offsetWall(WAVE2_SRC.wall, WAVE2_OFFSET), ...offsetWall(WAVE3_SRC.wall, WAVE3_OFFSET)],
+  waves: [
+    { n: 1, startX: 0, theme: 1, song: 'day1', label: 'WAVE 1' },
+    { n: 2, startX: WAVE2_OFFSET, theme: 2, song: 'day2', label: 'WAVE 2' },
+    { n: 3, startX: WAVE3_OFFSET, theme: 3, song: 'day3', label: 'WAVE 3' },
+  ],
+};

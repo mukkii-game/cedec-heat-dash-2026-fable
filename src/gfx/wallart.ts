@@ -124,32 +124,32 @@ export function makeVending(): Sprite {
 
 /** 駅入口（スタート地点の演出） */
 export function makeStation(): Sprite {
-  const w = 108;
-  const [c, g] = cv(w, 50);
+  const w = 124;
+  const [c, g] = cv(w, 58);
   // ガラスの箱
   g.fillStyle = OUTLINE;
-  g.fillRect(0, 12, w, 38);
+  g.fillRect(0, 20, w, 38);
   g.fillStyle = '#bfe8f2';
-  g.fillRect(2, 14, w - 4, 34);
+  g.fillRect(2, 22, w - 4, 34);
   g.fillStyle = '#8fc8dc';
-  for (let x = 8; x < w - 2; x += 12) g.fillRect(x, 14, 2, 34);
+  for (let x = 8; x < w - 2; x += 12) g.fillRect(x, 22, 2, 34);
   // 屋根
   g.fillStyle = OUTLINE;
-  g.fillRect(-1, 8, w + 2, 6);
+  g.fillRect(-1, 16, w + 2, 6);
   g.fillStyle = '#8494b0';
-  g.fillRect(0, 9, w, 4);
-  // 駅名サイン「みなとみらい駅」
-  const signW = w - 6;
+  g.fillRect(0, 17, w, 4);
+  // 駅名サイン「みなとみらい駅」（はっきり読めるよう大きめに）
+  const signW = w - 4;
   g.fillStyle = OUTLINE;
-  g.fillRect(3, 0, signW, 12);
+  g.fillRect(2, 0, signW, 17);
   g.fillStyle = '#2e4a7a';
-  g.fillRect(4, 1, signW - 2, 10);
-  text(g, 'みなとみらい駅', 3 + signW / 2, 1, { size: 8, color: '#f5f1e8', align: 'center', bold: true });
+  g.fillRect(3, 1, signW - 2, 15);
+  text(g, 'みなとみらい駅', 2 + signW / 2, 1, { size: 11, color: '#f5f1e8', align: 'center', bold: true });
   // 階段（下り）
   g.fillStyle = '#14101f';
-  g.fillRect(w / 2 - 10, 34, 20, 14);
+  g.fillRect(w / 2 - 10, 42, 20, 14);
   g.fillStyle = '#4a4a6a';
-  for (let i = 0; i < 5; i++) g.fillRect(w / 2 - 10, 34 + i * 3, 20, 1);
+  for (let i = 0; i < 5; i++) g.fillRect(w / 2 - 10, 42 + i * 3, 20, 1);
   return sp(c);
 }
 
@@ -251,13 +251,13 @@ export function makeDome(): Sprite {
   g.fillRect(cx - doorW / 2, h - 44, doorW, 44);
   g.fillStyle = '#ffe9a0';
   for (let x = -doorW / 2; x < doorW / 2; x += 8) g.fillRect(cx + x, h - 44, 1, 44);
-  // 看板「パシフィコ横浜」
-  const signW = 150;
+  // 看板「パシフィコ横浜」（ゴール地点の目印としてはっきり大きく）
+  const signW = 172;
   g.fillStyle = OUTLINE;
-  g.fillRect(cx - signW / 2 - 2, 96, signW + 4, 16);
+  g.fillRect(cx - signW / 2 - 2, 92, signW + 4, 22);
   g.fillStyle = '#e8504b';
-  g.fillRect(cx - signW / 2, 98, signW, 12);
-  text(g, 'パシフィコ横浜', cx, 99, { size: 9, color: '#f5f1e8', align: 'center', bold: true });
+  g.fillRect(cx - signW / 2, 94, signW, 18);
+  text(g, 'パシフィコ横浜', cx, 96, { size: 13, color: '#f5f1e8', align: 'center', bold: true });
   return sp(c, 0.5, 1);
 }
 

@@ -142,21 +142,38 @@ function renderTextCanvas(text: string, size: number, color: string, bold: boole
   const family = pixelFontReady
     ? `'GamePixel','MS Gothic',monospace`
     : `'MS Gothic','Osaka-Mono',monospace`;
+  // 高解像度で描いてから縮小することで、元フォントの丸みを保ったまま
+  // 小さいサイズでも読める字形にする（完全な2値化のガタつきを避ける）。
+  const SS = 3;
+  const measure = document.createElement('canvas').getContext('2d')!;
+  measure.font = `${bold ? 'bold ' : ''}${size * SS}px ${family}`;
+  const w = Math.max(1, Math.ceil(measure.measureText(text).width / SS) + 2);
+  const h = Math.ceil(size * 1.35);
+
+  const big = document.createElement('canvas');
+  big.width = w * SS;
+  big.height = h * SS;
+  const bcx = big.getContext('2d')!;
+  bcx.font = `${bold ? 'bold ' : ''}${size * SS}px ${family}`;
+  bcx.textBaseline = 'top';
+  bcx.fillStyle = color;
+  bcx.fillText(text, SS, SS);
+
   const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
   const cx = c.getContext('2d')!;
-  cx.font = `${bold ? 'bold ' : ''}${size}px ${family}`;
-  const m = cx.measureText(text);
-  c.width = Math.max(1, Math.ceil(m.width) + 2);
-  c.height = Math.ceil(size * 1.35);
-  cx.font = `${bold ? 'bold ' : ''}${size}px ${family}`;
-  cx.textBaseline = 'top';
-  cx.fillStyle = color;
-  cx.fillText(text, 1, 1);
-  // α2値化 → どの環境でもドットのエッジになる
-  const img = cx.getImageData(0, 0, c.width, c.height);
+  cx.imageSmoothingEnabled = true;
+  cx.imageSmoothingQuality = 'high';
+  cx.drawImage(big, 0, 0, big.width, big.height, 0, 0, w, h);
+
+  // 完全な2値化はやめ、なだらかなコントラスト強調のみに留める。
+  // 元フォントの滑らかな輪郭を活かしつつ、背景に負けない濃さを確保する。
+  const img = cx.getImageData(0, 0, w, h);
   const d = img.data;
   for (let i = 3; i < d.length; i += 4) {
-    d[i] = d[i] >= 110 ? 255 : 0;
+    const a = d[i];
+    d[i] = a <= 30 ? 0 : a >= 170 ? 255 : Math.round(Math.pow((a - 30) / 140, 0.7) * 255);
   }
   cx.putImageData(img, 0, 0);
   if (textCache.size > 400) textCache.clear();

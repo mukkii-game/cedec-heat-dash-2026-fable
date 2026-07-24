@@ -600,36 +600,59 @@ const BRICK_2 = ['..kkkkkkkk..', '.kbbbbbbbbk.', 'kbBBbbBBbbbk', 'kbbbbbbbbbbk',
 const BRICK_3 = ['...kkkkkk...', '.kbbbbbbk...', 'kbbBBbbbbk..', '.kBBbbbbbbk.', '..kbbbbBBbk.', '...kbbbbbbk.', '...kkkkkk...'];
 const BRICK_P = { b: '#c0453a', B: '#8a2c24' };
 
-// キックボード迷惑にーちゃん（サインカーブで爆走）
-const KICKBOARD = [
+// キックボード女子（法定速度無視で爆走する、なびく長い髪とワンピースの
+// 「さわやかだけど迷惑」な集団。ハイスピード＋サインカーブで縦横無尽）
+// 髪がなびくよう2フレームで交互再生する
+const KICKGIRL_0 = [
   '.......kkkkk...........',
-  '......krrrrrk..........',
-  '......krhhhrk..........',
-  '.......khsssk..........',
-  '.......ksswksk.........',
+  '......khhhhhhk.........',
+  '.....khhhsssshk........',
+  '.......ksswsk..........',
   '.......kssssk..........',
   '........kssSk..........',
-  '.......kkjjkk...........',
-  '......kjjjjjjk..........',
-  '.....kjjjjjjjjk.........',
-  '....kjjkjjjjjjjk........',
-  '....kjkkkjjjjjjk........',
-  '....kk...kjjjjk.........',
-  '.........kjjjk..........',
-  '........kk.kk...........',
+  '.......khhhhhhhk.......',
+  '......khhpppphhhk......',
+  '.....khhppppppphhk.....',
+  '.....khpppppppppphk....',
+  '....kkppppppppppkk.....',
+  '....kk.kpPPPPppk.......',
+  '........kpPPPPpk.......',
+  '........kk....kk.......',
   '........................',
   'kkkkkkkkkkkkkkkkkkkkkkkk',
   'kddddddddddddddddddddddk',
   '.kkk................kkk.',
-  '.kwwk..............kwwk.',
+  '.keek..............keek.',
   '.kkkk..............kkkk.',
 ];
-const KICKBOARD_P = {
-  r: '#7a68c8', // ヘルメット
-  h: '#4a3524',
-  j: '#e8a83c', // ジャケット
+const KICKGIRL_1 = [
+  '.......kkkkk...........',
+  '.....khhhhhhhk.........',
+  '....khhh.sssshk........',
+  '.......ksswsk..........',
+  '.......kssssk..........',
+  '........kssSk..........',
+  '....khhhhhhhhhhk.......',
+  '...khh.khppphk.hhk.....',
+  '..khh..khppppphk.hhk...',
+  '.....khpppppppppphk....',
+  '....kkppppppppppkk.....',
+  '....kk.kpPPPPppk.......',
+  '........kpPPPPpk.......',
+  '........kk....kk.......',
+  '........................',
+  'kkkkkkkkkkkkkkkkkkkkkkkk',
+  'kddddddddddddddddddddddk',
+  '.kkk................kkk.',
+  '.keek..............keek.',
+  '.kkkk..............kkkk.',
+];
+const KICKGIRL_P = {
+  h: '#f2d24a', // 髪(金)
+  p: '#ff6ea8', // ワンピース
+  P: '#c94a80', // ワンピース影
   d: '#5a5468', // デッキ
-  w: '#2a2a3a', // 車輪
+  e: '#2a2a3a', // 車輪
 };
 
 // 名刺交換マン（スーツ）
@@ -710,7 +733,7 @@ export interface SpriteBank {
   sign: Sprite;
   peds: Sprite[][]; // [variant][frame]
   brick: Sprite[]; // 回転4方向
-  kickboard: Sprite;
+  kickboardGirl: Sprite[]; // 髪なびき2フレーム
 }
 
 // 通行人: プレイヤーと同構造の簡略版（2フレーム）を色替え量産
@@ -827,7 +850,7 @@ export function buildSprites(): SpriteBank {
     suitcase: mk(SUITCASE, SUITCASE_P),
     sign: mk(SIGN, SIGN_P),
     brick: [mk(BRICK_0, BRICK_P), mk(BRICK_1, BRICK_P), mk(BRICK_2, BRICK_P), mk(BRICK_3, BRICK_P)],
-    kickboard: mk(KICKBOARD, KICKBOARD_P),
+    kickboardGirl: [mk(KICKGIRL_0, KICKGIRL_P), mk(KICKGIRL_1, KICKGIRL_P)],
     peds,
   };
 }

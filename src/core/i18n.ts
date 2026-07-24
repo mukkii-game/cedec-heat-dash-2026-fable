@@ -11,12 +11,10 @@ const STR: Record<string, [string, string]> = {
     '↑↓/WS MOVE  ←→/AD SPEED  SPACE/ENTER/CLICK JUMP',
   ],
   'title.start': ['さいしょから', 'START'],
-  'title.day': ['日をえらぶ', 'DAY SELECT'],
   'title.lang': ['LANG: 日本語', 'LANG: ENGLISH'],
   'title.sound': ['サウンド: ON', 'SOUND: ON'],
   'title.soundOff': ['サウンド: OFF', 'SOUND: OFF'],
   'title.best': ['ベスト', 'BEST'],
-  'title.total': ['そうごう', 'TOTAL'],
 
   // OP
   'op.1': [
@@ -33,16 +31,16 @@ const STR: Record<string, [string, string]> = {
   ],
   'op.skip': ['タップでスキップ', 'TAP TO SKIP'],
 
-  // ステージイントロ
-  'day1.title': ['DAY 1  7月22日', 'DAY 1  JULY 22'],
-  'day1.sub': ['みなとみらい、晴れ。', 'Minatomirai. Sunny.'],
-  'day1.tip': ['日陰はすずしい。でも、ちょっと遅い。', 'Shade keeps you cool... but slow.'],
-  'day2.title': ['DAY 2  7月23日', 'DAY 2  JULY 23'],
-  'day2.sub': ['猛暑日。人も増えた。', 'Extreme heat. Bigger crowds.'],
-  'day2.tip': ['光る床は速いが、あつい。', 'Glare tiles: fast but scorching.'],
-  'day3.title': ['DAY 3  7月24日', 'DAY 3  JULY 24'],
-  'day3.sub': ['みなとみらい砂漠。', 'The Minatomirai Desert.'],
-  'day3.tip': ['……砂漠？', '...Desert?'],
+  // ステージイントロ / チェックポイント（WAVE1〜3、旧DAY1〜3が母体）
+  'wave1.title': ['めざせCEDEC', 'HEAT DASH'],
+  'wave1.sub': ['みなとみらい、晴れ。', 'Minatomirai. Sunny.'],
+  'wave1.tip': ['日陰はすずしい。でも、ちょっと遅い。', 'Shade keeps you cool... but slow.'],
+  'wave2.title': ['WAVE 2', 'WAVE 2'],
+  'wave2.sub': ['猛暑日。人も増えた。', 'Extreme heat. Bigger crowds.'],
+  'wave2.tip': ['光る床は速いが、あつい。', 'Glare tiles: fast but scorching.'],
+  'wave3.title': ['WAVE 3', 'WAVE 3'],
+  'wave3.sub': ['みなとみらい砂漠。', 'The Minatomirai Desert.'],
+  'wave3.tip': ['……砂漠？', '...Desert?'],
   'stage.ready': ['READY...', 'READY...'],
   'stage.go': ['GO!', 'GO!'],
 
@@ -65,9 +63,10 @@ const STR: Record<string, [string, string]> = {
   'q.restPant': ['はぁ…はぁ…生きてる…', 'Huff... puff... I\'m alive...'],
   'q.kickboard': ['コリジョン判定広すぎ！', "That hitbox is way too generous!"],
   'q.mirage': ['フェイク日陰？仕事しろ', 'Fake shade?! Do your job.'],
-  'q.goal1': ['着いた！ 会場すずしい！！', 'Made it! Sweet AC!!'],
-  'q.goal2': ['セッションに間に合った…！', 'Made it to the session...!'],
-  'q.goal3': ['俺たちは、よく着いた。', 'We made it. We really did.'],
+  'q.checkpoint2': ['ここからWAVE2か…本番だな', 'WAVE 2 already? Here we go.'],
+  'q.checkpoint3': ['げ、砂漠になってる!?', 'Wait, it turned into a DESERT!?'],
+  'q.goalFinal': ['着いた！ 会場すずしい！！', 'Made it! Sweet AC!!'],
+  'q.shadeCool': ['シュワー…生き返る', 'Fizz... I feel alive again.'],
 
   // HUD
   'hud.day': ['DAY', 'DAY'],
@@ -81,17 +80,12 @@ const STR: Record<string, [string, string]> = {
   'res.best': ['ベスト', 'BEST'],
   'res.newRecord': ['NEW RECORD!', 'NEW RECORD!'],
   'res.rank': ['ひょうか', 'RATING'],
-  'res.next': ['つぎの日へ', 'NEXT DAY'],
+  'res.toEd': ['スタッフロールへ', 'TO CREDITS'],
   'res.retry': ['リトライ (R)', 'RETRY (R)'],
   'res.toTitle': ['タイトルへ', 'TITLE'],
   'res.star3': ['プロランナー', 'PRO RUNNER'],
   'res.star2': ['さすが健脚', 'SPEED WALKER'],
   'res.star1': ['とうちゃくが優勝', 'ARRIVING IS WINNING'],
-
-  // 総合リザルト
-  'total.title': ['3日間 総合リザルト', '3-DAY FINAL RESULT'],
-  'total.sum': ['総合タイム', 'TOTAL TIME'],
-  'total.newRecord': ['総合 NEW RECORD!', 'TOTAL NEW RECORD!'],
 
   // ゲームオーバー
   'go.title': ['熱中症でリタイア…', 'HEAT KO...'],
@@ -117,6 +111,16 @@ const STR: Record<string, [string, string]> = {
   'hint.moveTouch': ['左ドラッグ：移動＋加減速', 'DRAG LEFT: MOVE + SPEED'],
   'hint.jumpTouch': ['右タップ：ジャンプ', 'TAP RIGHT: JUMP'],
   'hint.dash': ['ダッシュは速いが、あつい！', 'Dashing is fast... and HOT!'],
+
+  // すれ違う集団のぺちゃくちゃ雑談（横浜ネタ、プレイヤーのセリフとは別枠）
+  'chat.1': ['赤レンガ倉庫、寄ってく？', 'Wanna stop by the Red Brick Warehouse?'],
+  'chat.2': ['中華街でお昼どうする？', 'Chinatown for lunch later?'],
+  'chat.3': ['ランドマークタワー久しぶり〜', "Haven't seen Landmark Tower in ages~"],
+  'chat.4': ['コスモワールドの観覧車乗ろうよ', "Let's ride the Cosmo World ferris wheel."],
+  'chat.5': ['山下公園、暑すぎて誰もいない', 'Yamashita Park is empty—way too hot.'],
+  'chat.6': ['ベイブリッジ渋滞してるらしいよ', 'Bay Bridge is jammed, apparently.'],
+  'chat.7': ['汽車道、日陰なくてつらい', 'No shade at all on Kishamichi.'],
+  'chat.8': ['今日、みなとみらい線混んでたね', 'The Minatomirai Line was packed today.'],
 };
 
 export class I18n {

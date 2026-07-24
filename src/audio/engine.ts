@@ -9,6 +9,7 @@ export type SfxName =
   | 'land'
   | 'damage'
   | 'shade'
+  | 'shadeFizz'
   | 'mist'
   | 'drink'
   | 'energy'
@@ -197,6 +198,11 @@ export class AudioSys {
         this.tone({ f0: 880, f1: 440, t: 0.16, vol: 0.1, type: 'sine' });
         this.tone({ f0: 1320, f1: 660, t: 0.16, vol: 0.06, type: 'sine', when: 0.03 });
         break;
+      case 'shadeFizz':
+        // 日陰で回復し続けている間、軽い「シュワー」という炭酸っぽい泡音を挟む
+        this.noise({ t: 0.22, vol: 0.045, hp: 5200, lp: 9000 });
+        this.tone({ f0: 1800, f1: 2600, t: 0.14, vol: 0.03, type: 'sine', when: 0.02 });
+        break;
       case 'mist':
         this.noise({ t: 0.3, vol: 0.06, hp: 3600, lp: 6800 });
         this.tone({ f0: 1560, f1: 2100, t: 0.2, vol: 0.05, type: 'sine' });
@@ -294,16 +300,18 @@ export class AudioSys {
     const c = this.ctx;
     if (!c) return;
     if (active && !this.dashLoopNodes) {
+      // アクセル音: 甲高く吹け上がるノコギリ波（踏み込んだ瞬間にひと伸びしてから巡航）
       const osc = c.createOscillator();
       osc.type = 'sawtooth';
-      osc.frequency.value = 260;
+      osc.frequency.setValueAtTime(190, c.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(300, c.currentTime + 0.22);
       const flt = c.createBiquadFilter();
       flt.type = 'bandpass';
-      flt.frequency.value = 900;
-      flt.Q.value = 0.6;
+      flt.frequency.value = 1150;
+      flt.Q.value = 0.8;
       const g = c.createGain();
       g.gain.setValueAtTime(0.0001, c.currentTime);
-      g.gain.linearRampToValueAtTime(0.045, c.currentTime + 0.12);
+      g.gain.linearRampToValueAtTime(0.062, c.currentTime + 0.1);
       osc.connect(flt);
       flt.connect(g);
       g.connect(this.sfxGain);
@@ -324,6 +332,8 @@ export class AudioSys {
     const c = this.ctx;
     if (!c) return;
     if (active && !this.brakeLoopNodes) {
+      // ブレーキ音: 低くこもったノイズ＋こすれるような共鳴（レゾナンスを効かせた
+      // ローパス）で「キュッ」と靴底が擦れる質感を足す
       const len = c.sampleRate * 2;
       const buf = c.createBuffer(1, len, c.sampleRate);
       const d = buf.getChannelData(0);
@@ -333,10 +343,11 @@ export class AudioSys {
       src.loop = true;
       const flt = c.createBiquadFilter();
       flt.type = 'lowpass';
-      flt.frequency.value = 500;
+      flt.frequency.value = 320;
+      flt.Q.value = 4;
       const g = c.createGain();
       g.gain.setValueAtTime(0.0001, c.currentTime);
-      g.gain.linearRampToValueAtTime(0.05, c.currentTime + 0.12);
+      g.gain.linearRampToValueAtTime(0.068, c.currentTime + 0.12);
       src.connect(flt);
       flt.connect(g);
       g.connect(this.sfxGain);

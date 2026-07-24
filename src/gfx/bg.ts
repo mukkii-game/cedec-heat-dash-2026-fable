@@ -463,20 +463,75 @@ export class Background {
     const sy = target ? homeY + (target.y - homeY) * b : homeY;
     const r = t.giantSun ? 30 : 10;
     const pulse = 1 + Math.sin(time * 2) * 0.04;
-    g.fillStyle = '#fff6c8';
+    // 攻撃(警告〜照射)が近づくほど凶悪な赤へ変わる
+    const angry = b;
+    g.fillStyle = angry > 0.4 ? '#ff5a3a' : '#fff6c8';
     g.beginPath();
     g.arc(sx, sy, r * pulse + 3, 0, Math.PI * 2);
     g.fill();
-    g.fillStyle = '#ffd94d';
+    g.fillStyle = angry > 0.4 ? '#ff2a1e' : '#ffd94d';
     g.beginPath();
     g.arc(sx, sy, r * pulse, 0, Math.PI * 2);
     g.fill();
     // 光条
-    g.fillStyle = '#ffe98a';
+    g.fillStyle = angry > 0.4 ? '#ffb28a' : '#ffe98a';
     for (let k = 0; k < 8; k++) {
       const a = (k / 8) * Math.PI * 2 + time * 0.2;
       const rr = r * pulse + 5 + Math.sin(time * 3 + k) * 2;
       g.fillRect(Math.round(sx + Math.cos(a) * rr) - 1, Math.round(sy + Math.sin(a) * rr) - 1, 2, 2);
+    }
+    this.drawSunFace(g, sx, sy, r * pulse, angry);
+  }
+
+  /** 太陽の凶悪な顔。攻撃が近づくほど眉がつり上がり、口が怒りの牙になる */
+  private drawSunFace(g: CanvasRenderingContext2D, sx: number, sy: number, r: number, angry: number): void {
+    const eyeDX = r * 0.42;
+    const eyeDY = -r * 0.06;
+    const eyeR = Math.max(1, r * (0.15 + angry * 0.05));
+    const dark = '#221833';
+    // 眉（つり上がり具合がangryで増す）
+    g.fillStyle = dark;
+    const browLen = r * 0.55;
+    const browTilt = r * (0.12 + angry * 0.22);
+    for (const side of [-1, 1]) {
+      g.beginPath();
+      g.moveTo(sx + side * (eyeDX - browLen * 0.5), sy + eyeDY - eyeR * 1.6 + browTilt * (side === -1 ? 0.5 : -0.1));
+      g.lineTo(sx + side * (eyeDX + browLen * 0.5), sy + eyeDY - eyeR * 1.6 - browTilt * (side === -1 ? 0.1 : 0.5));
+      g.lineTo(sx + side * (eyeDX + browLen * 0.5), sy + eyeDY - eyeR * 1.6 - browTilt * (side === -1 ? 0.1 : 0.5) + r * 0.16);
+      g.lineTo(sx + side * (eyeDX - browLen * 0.5), sy + eyeDY - eyeR * 1.6 + browTilt * (side === -1 ? 0.5 : -0.1) + r * 0.16);
+      g.closePath();
+      g.fill();
+    }
+    // 目（攻撃時は赤く光る吊り目に）
+    g.fillStyle = angry > 0.35 ? '#ff2a2a' : dark;
+    for (const side of [-1, 1]) {
+      g.beginPath();
+      g.ellipse(sx + side * eyeDX, sy + eyeDY, eyeR, eyeR * (1 - angry * 0.3), 0, 0, Math.PI * 2);
+      g.fill();
+    }
+    // 口（普段はへの字、攻撃時はギザギザに開けた牙）
+    g.strokeStyle = dark;
+    g.fillStyle = dark;
+    g.lineWidth = Math.max(1, r * 0.1);
+    g.lineCap = 'round';
+    const mouthY = sy + r * 0.44;
+    const mouthW = r * (0.42 + angry * 0.18);
+    if (angry > 0.45) {
+      g.beginPath();
+      const teeth = 4;
+      g.moveTo(sx - mouthW, mouthY - r * 0.08);
+      for (let i = 0; i <= teeth; i++) {
+        const xx = sx - mouthW + (mouthW * 2 * i) / teeth;
+        const yy = mouthY + (i % 2 === 0 ? r * 0.2 : -r * 0.04);
+        g.lineTo(xx, yy);
+      }
+      g.closePath();
+      g.fill();
+    } else {
+      g.beginPath();
+      g.moveTo(sx - mouthW, mouthY - r * 0.05);
+      g.quadraticCurveTo(sx, mouthY + r * 0.12, sx + mouthW, mouthY - r * 0.05);
+      g.stroke();
     }
   }
 

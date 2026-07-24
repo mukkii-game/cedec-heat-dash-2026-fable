@@ -16,7 +16,7 @@ import {
   makeSign,
   makeBanner,
 } from '../gfx/wallart';
-import { COURSES, type Course, type ObDef } from './course';
+import { MAIN, type Course, type ObDef, type Wave } from './course';
 import { calcStars, type Ctx, type Scene } from './ctx';
 
 // ---- 調整値（GAME_DESIGN.md §3） ----
@@ -33,7 +33,12 @@ const MAX_SUN = 10.0;
 const MAX_SHADE = 8.4;
 const MAX_GLARE = 10.8;
 const DASH_MULT = 1.4; // ダッシュ時の上限倍率
-const BRAKE_V = 3.8;
+const BRAKE_V = 2.6;
+/** チェックポイント(WAVE切替)通過時、ヒートをこの上限までクールダウンさせる。
+ * 各WAVEは元々「熱0から始まる前提」でバランスされているため、通し1本化で
+ * 熱が積み上がったまま次区間に入ると理不尽な連鎖死が起きる。新エリアに入る
+ * 「涼しい切り替わり」の演出も兼ねて、ここでしっかり逃がす。 */
+const CHECKPOINT_HEAT_CAP = 0;
 const SAND_MULT = 0.6;
 // ヒート（0=快適 100=熱中症）。日向で上がり日陰で下がる
 const HEAT_SUN = 2.2;
@@ -54,6 +59,8 @@ const GULL_DIVE_T = 0.6; // s
 const GULL_HIT_FROM = 0.15; // dive開始からの被弾有効化(s)
 /** 表示用スプライト倍率（画面上の存在感。当たり判定はメートル系で不変） */
 const SPR = 1.45;
+/** 歩行者・通行人系はもう一段階大きく見せ、障害物としての邪魔さを強調する */
+const PED_SPR = SPR * 1.16;
 
 interface Particle {
   x: number;
@@ -77,6 +84,7 @@ interface Ob extends ObDef {
   // gull
   gullState?: 'idle' | 'warn' | 'dive' | 'gone';
   gullT?: number;
+  chatted?: boolean; // chat: trueな集団の代表ped。雑談吹き出しを出し終えたか
 }
 
 interface LaserRt {
@@ -90,13 +98,29 @@ interface Quip {
   t: number;
 }
 
+interface ChatBubble {
+  text: string;
+  x: number;
+  z: number;
+  t: number;
+}
+
 type StState = 'intro' | 'ready' | 'play' | 'goal' | 'dead';
 
 export class Stage implements Scene {
   private ctx: Ctx;
   private course: Course;
-  private day: number;
-  private bg: Background;
+  /** 開始WAVE（通しは1。?wave=Nデバッグ用） */
+  private startWave: number;
+  /** 現在プレイ中のWAVE（チェックポイント通過で更新） */
+  private waveIdx: 1 | 2 | 3 = 1;
+  private bgs: Background[];
+  private get bg(): Background {
+    return this.bgs[this.waveIdx - 1];
+  }
+  /** WAVE切替バナーの残表示時間 */
+  private waveBannerT = 0;
+  private waveBannerLabel = '';
   private state: StState = 'intro';
   private stateT = 0;
   private paused = false;
@@ -127,6 +151,7 @@ export class Stage implements Scene {
   private mirageFade: number[] = [];
   private particles: Particle[] = [];
   private quips: Quip[] = [];
+  private chatBubbles: ChatBubble[] = [];
   private quipCd = 0;
   private shakeT = 0;
   private flashT = 0;
@@ -148,11 +173,11 @@ export class Stage implements Scene {
   private artDome: Sprite;
   private pedFlip: Sprite[][];
 
-  constructor(ctx: Ctx, day: number) {
+  constructor(ctx: Ctx, startWave: number = 1) {
     this.ctx = ctx;
-    this.day = day;
-    this.course = COURSES[day] ?? COURSES[1];
-    this.bg = new Background(THEMES[day] ?? THEMES[1]);
+    this.startWave = Math.min(3, Math.max(1, startWave));
+    this.course = MAIN;
+    this.bgs = [new Background(THEMES[1]), new Background(THEMES[2]), new Background(THEMES[3])];
     this.artTree = makeTree();
     this.artPalm = makePalm();
     this.artVending = makeVending();
@@ -165,7 +190,13 @@ export class Stage implements Scene {
   }
 
   private reset(): void {
-    this.px = 0;
+    const wv = this.course.waves[this.startWave - 1] ?? this.course.waves[0];
+    this.px = wv.startX;
+    this.waveIdx = wv.n;
+    this.waveBannerT = 0;
+    // 障害物の左右振動などはthis.time基準の位相なので、?wave=デバッグ直行でも
+    // 「通しで自然に到達した場合」に近い経過時間から始め、極端な悪い巡り合わせを避ける
+    this.time = wv.startX / 9.3;
     this.pz = 0.6;
     this.v = V_MIN;
     this.heat = 0;
@@ -184,6 +215,7 @@ export class Stage implements Scene {
     this.paused = false;
     this.particles = [];
     this.quips = [];
+    this.chatBubbles = [];
     this.quipCd = 0;
     this.firstShade = false;
     this.firstLowHp = false;
@@ -317,9 +349,12 @@ export class Stage implements Scene {
     this.quipCd = Math.max(0, this.quipCd - dt);
     for (const q of this.quips) q.t -= dt;
     this.quips = this.quips.filter((q) => q.t > 0);
+    for (const c of this.chatBubbles) c.t -= dt;
+    this.chatBubbles = this.chatBubbles.filter((c) => c.t > 0);
     this.updateParticles(dt);
     this.shakeT = Math.max(0, this.shakeT - dt);
     this.flashT = Math.max(0, this.flashT - dt);
+    this.waveBannerT = Math.max(0, this.waveBannerT - dt);
 
     switch (this.state) {
       case 'intro':
@@ -332,7 +367,7 @@ export class Stage implements Scene {
       case 'ready':
         if (this.stateT >= 0.9 && this.stateT - dt < 0.9) {
           audio.sfx('go');
-          music.play(`day${this.day}` as 'day1' | 'day2' | 'day3');
+          music.play(this.course.waves[this.waveIdx - 1].song);
           this.quip(i18n.t('q.start'));
         }
         if (this.stateT >= 0.9) {
@@ -473,6 +508,17 @@ export class Stage implements Scene {
     if (this.stumbleT > 0) this.v = Math.min(this.v, env.maxV * 0.75);
     this.px += this.v * dt;
 
+    // WAVEチェックポイント（曲・背景・レベルデザインが切り替わる区切り。歩みは止めない）
+    // 通過済みwaveへ後戻りしないよう、必ず「現在地から見て最も進んだwave」にだけ進む
+    let targetWave = this.waveIdx;
+    for (const w of this.course.waves) {
+      if (this.px >= w.startX && w.n > targetWave) targetWave = w.n;
+    }
+    if (targetWave !== this.waveIdx) {
+      const wv = this.course.waves.find((w) => w.n === targetWave);
+      if (wv) this.enterWave(wv);
+    }
+
     // ヒート収支
     let heatRate = env.heatRate + dashHeat;
     if (this.braking && heatRate > 0) heatRate *= BRAKE_HEAT_MULT;
@@ -504,6 +550,22 @@ export class Stage implements Scene {
         this.spawnP(PSX + (Math.random() - 0.5) * 20, zToY(this.pz) - 24, (Math.random() - 0.5) * 20, -20, 0.5, '#9fd0ff', 1, 0);
       }
     }
+    // 日陰に居続けている間、爽やかな青いキラキラ粒＋シュワー音で「回復し続けている」感を出す
+    if (env.shaded) {
+      if (Math.random() < dt * 5) {
+        const jx = (Math.random() - 0.5) * 22;
+        const jy = -10 - Math.random() * 22;
+        this.spawnP(PSX + jx, zToY(this.pz) + jy, jx * 0.6, -14 - Math.random() * 10, 0.55, Math.random() < 0.5 ? '#9fd0ff' : '#d6f0ff', 1, -20);
+      }
+      this.shadeFizzT -= dt;
+      if (this.shadeFizzT <= 0) {
+        this.shadeFizzT = 0.55 + Math.random() * 0.25;
+        audio.sfx('shadeFizz');
+        if (Math.random() < 0.3) this.quip(i18n.t('q.shadeCool'));
+      }
+    } else {
+      this.shadeFizzT = 0;
+    }
     if (env.mist && !this.wasMist) {
       audio.sfx('mist');
       this.quip(i18n.t('q.mist'));
@@ -514,6 +576,27 @@ export class Stage implements Scene {
     // 汗・土埃（ヒートが高いほど汗が増える）
     if (!env.shaded && Math.random() < dt * (1.5 + this.heat * 0.06)) {
       this.spawnP(PSX + 6, zToY(this.pz) - 26, 14, -26, 0.4, '#bfe8ff', 1, 90);
+    }
+    // 継続的な湯気（ヒートが上がるほど濃く、90%付近ではもうもうと立ちこめる）
+    if (this.heat > 35) {
+      const f = Math.max(0, (this.heat - 35) / 65);
+      const dense = this.heat >= 88;
+      if (Math.random() < dt * Math.pow(f, 1.8) * 11) {
+        const n = dense ? 2 + Math.floor(Math.random() * 2) : 1;
+        for (let i = 0; i < n; i++) {
+          const jx = (Math.random() - 0.5) * (dense ? 22 : 12);
+          this.spawnP(
+            PSX + jx,
+            zToY(this.pz) - 16 - Math.random() * 12,
+            jx * 0.35,
+            -20 - Math.random() * 16,
+            dense ? 0.9 : 0.6,
+            'rgba(235,235,240,0.6)',
+            dense ? 3 : 2,
+            -10,
+          );
+        }
+      }
     }
     if (this.airT < 0 && this.v > 6 && Math.random() < dt * (this.dashing ? 26 : 14)) {
       this.spawnP(PSX - 8, zToY(this.pz) - 1, -30 - Math.random() * 30, -12 - Math.random() * 18, 0.3, env.sand ? '#d9a45c' : '#cbb694', 1, 160);
@@ -565,7 +648,7 @@ export class Stage implements Scene {
       this.stateT = 0;
       music.stop();
       audio.sfx('goal');
-      this.quip(i18n.t(`q.goal${this.day}`));
+      this.quip(i18n.t('q.goalFinal'));
       for (let i = 0; i < 50; i++) {
         this.spawnP(
           PSX + Math.random() * 200,
@@ -582,6 +665,24 @@ export class Stage implements Scene {
   }
   private wasShaded = false;
   private wasMist = false;
+  private shadeFizzT = 0;
+
+  /** WAVE切替: 曲・背景テーマを差し替え、ヒートを少し逃がしてバナーを出す（プレイは止めない） */
+  private enterWave(wv: Wave): void {
+    const { audio, i18n, music } = this.ctx;
+    this.waveIdx = wv.n;
+    music.play(wv.song);
+    this.heat = Math.min(this.heat, CHECKPOINT_HEAT_CAP);
+    this.waveBannerT = 2.2;
+    this.waveBannerLabel = wv.label;
+    this.flashT = 0.15;
+    audio.sfx('shade');
+    if (wv.n === 2) this.quip(i18n.t('q.checkpoint2'), true);
+    else if (wv.n === 3) this.quip(i18n.t('q.checkpoint3'), true);
+    for (let i = 0; i < 14; i++) {
+      this.spawnP(PSX + (Math.random() - 0.5) * 40, zToY(this.pz) - 20 - Math.random() * 20, (Math.random() - 0.5) * 30, -30 - Math.random() * 20, 0.6, '#9fd0ff', 2, 0);
+    }
+  }
 
   private updateGoal(dt: number): void {
     const restStart = 1.3;
@@ -602,8 +703,8 @@ export class Stage implements Scene {
     if (this.stateT > restStart + 2.1) {
       const t = Math.round(this.timer * 100) / 100;
       const stars = calcStars(t, this.course.par);
-      const isBest = this.ctx.save.recordClear(this.day - 1, t);
-      this.ctx.gotoResult(this.day, t, stars, isBest);
+      const isBest = this.ctx.save.recordClear(t);
+      this.ctx.gotoResult(t, stars, isBest);
     }
   }
 
@@ -720,6 +821,13 @@ export class Stage implements Scene {
           if (o.zAmp) {
             o.curZ = o.baseZ + Math.sin(this.time * 0.9 + o.phase) * o.zAmp;
             o.curZ = Math.min(0.95, Math.max(0.05, o.curZ));
+          }
+          // 集団の代表(chat:true)がすれ違う距離まで来たら、横浜ネタの雑談を出す
+          if (o.chat && !o.chatted && dist < 16 && dist > -4) {
+            o.chatted = true;
+            const n = 8;
+            const idx = 1 + (Math.floor(hash(o.x * 4.1 + o.z * 6.7) * n) % n);
+            this.chatBubbles.push({ text: this.ctx.i18n.t(`chat.${idx}`), x: o.curX, z: o.curZ, t: 2.4 });
           }
           break;
         }
@@ -999,6 +1107,7 @@ export class Stage implements Scene {
       g.globalAlpha = 1;
     }
 
+    this.drawChatBubbles(g, camX);
     this.drawQuips(g);
     this.drawHud(g);
     this.drawOverlays(g);
@@ -1088,8 +1197,12 @@ export class Stage implements Scene {
     const yFar = zToY(0.02);
     const yNear = zToY(0.98);
     if (!front) {
-      // ゴール地点にそびえる「パシフィコ横浜」風ドーム（遠くからでも見える目印）
-      blit(g, this.artDome, sxFar, yFar + 4, 0.62);
+      // ゴール地点にそびえる「パシフィコ横浜」風ドーム（遠くからでも見える目印。
+      // 近づくほど画面内でも大きく見えるよう、距離に応じてスケールを伸ばす）
+      const distM = Math.max(0, gx - camX);
+      const approach = Math.min(1, Math.max(0, 1 - distM / 220));
+      const domeScale = 0.62 + approach * 0.5;
+      blit(g, this.artDome, sxFar, yFar + 4, domeScale);
       blit(g, this.artPillar, sxFar, yFar, 0.72);
       // 横断幕（奥→手前へ斜めの帯）
       const topFar = yFar - 58 * 0.72;
@@ -1186,20 +1299,39 @@ export class Stage implements Scene {
       const w = sx1 - sx0;
       const fade = rt.t < 0.08 ? rt.t / 0.08 : rt.t > dur - 0.15 ? Math.max(0, (dur - rt.t) / 0.15) : 1;
       const yBot = Math.round(zToY(zHi));
-      // 半透明のメッシュ状ビーム（背景が透けて見えるよう、市松状に間引いて塗る）
-      const meshOffset = Math.floor(this.time * 40);
-      g.globalAlpha = 0.5 * fade;
-      g.fillStyle = '#ff8c42';
+
+      // 炎をまとった巨大な柱がどーんと落ちてくる演出。縁を不規則にゆらして
+      // 「炎が舐める」ように見せる（低頻度の三角波2枚を重ねてメラつかせる）
+      const flick = (y: number, seed: number) =>
+        Math.round(Math.sin(y * 0.5 + this.time * 24 + seed) * 3 + Math.sin(y * 0.21 + this.time * 10 + seed * 2) * 2);
+      g.globalAlpha = 0.78 * fade;
+      g.fillStyle = '#a8241a';
       for (let y = 0; y < yBot; y += 2) {
-        const xOff = (y + meshOffset) % 4 < 2 ? 0 : 1;
-        g.fillRect(sx0 - 3 + xOff, y, w + 6, 1);
+        const jL = flick(y, i * 3.1);
+        const jR = flick(y, i * 3.1 + 40);
+        g.fillRect(sx0 - 6 + jL, y, Math.max(1, w + 12 + (jR - jL)), 2);
       }
-      g.globalAlpha = 0.62 * fade;
-      g.fillStyle = '#fff6c8';
-      const coreX = sx0 + Math.round(w * 0.18);
-      const coreW = Math.round(w * 0.64);
+      g.globalAlpha = 0.85 * fade;
+      g.fillStyle = '#ff6a2e';
       for (let y = 0; y < yBot; y += 2) {
-        g.fillRect(coreX, y, coreW, 1);
+        const jL = Math.round(flick(y, i * 3.1 + 7) * 0.7);
+        const jR = Math.round(flick(y, i * 3.1 + 47) * 0.7);
+        g.fillRect(sx0 - 3 + jL, y, Math.max(1, w + 6 + (jR - jL)), 2);
+      }
+      g.globalAlpha = 0.95 * fade;
+      g.fillStyle = '#ffb04a';
+      const coreX = sx0 + Math.round(w * 0.14);
+      const coreW = Math.round(w * 0.72);
+      for (let y = 0; y < yBot; y += 2) {
+        const j = Math.round(flick(y, i * 3.1 + 90) * 0.4);
+        g.fillRect(coreX + j, y, coreW, 2);
+      }
+      g.globalAlpha = fade;
+      g.fillStyle = '#fff6c8';
+      const hotX = sx0 + Math.round(w * 0.32);
+      const hotW = Math.max(2, Math.round(w * 0.36));
+      for (let y = 0; y < yBot; y += 3) {
+        g.fillRect(hotX, y, hotW, 2);
       }
       g.globalAlpha = 1;
       // 着弾の白熱
@@ -1210,6 +1342,30 @@ export class Stage implements Scene {
         const ex1 = this.telegraphX(def.x + def.halfW, camX, y);
         g.fillStyle = `rgba(255,246,200,${0.7 * fade})`;
         g.fillRect(ex0, y, ex1 - ex0, 1);
+      }
+      // 着弾の瞬間だけ、地面に衝撃波の輪を出す（「どーん」の一撃感）
+      if (rt.t < 0.12) {
+        const ringR = Math.round(w * 1.1 * (rt.t / 0.12));
+        g.globalAlpha = fade * 0.55;
+        g.strokeStyle = '#ffd94d';
+        g.lineWidth = 2;
+        g.beginPath();
+        g.ellipse((sx0 + sx1) / 2, yBot, Math.max(1, ringR), Math.max(1, ringR * 0.26), 0, 0, Math.PI * 2);
+        g.stroke();
+        g.globalAlpha = 1;
+      }
+      // 炎の粉塵が立ち上る
+      if (Math.random() < 0.85) {
+        this.spawnP(
+          sx0 + Math.random() * w,
+          yBot - Math.random() * 10,
+          (Math.random() - 0.5) * 40,
+          -50 - Math.random() * 70,
+          0.45,
+          Math.random() < 0.5 ? '#ff8c42' : '#ffd94d',
+          2,
+          -30,
+        );
       }
       // 火花
       if (Math.random() < 0.6) {
@@ -1275,8 +1431,8 @@ export class Stage implements Scene {
           items.push({
             z: o.curZ,
             fn: () => {
-              this.drawShadow(g, sx, sy, 9 * sc * SPR);
-              blit(g, f, sx, sy, sc * SPR);
+              this.drawShadow(g, sx, sy, 9 * sc * PED_SPR);
+              blit(g, f, sx, sy, sc * PED_SPR);
             },
           });
           break;
@@ -1299,9 +1455,9 @@ export class Stage implements Scene {
           items.push({
             z: o.curZ,
             fn: () => {
-              this.drawShadow(g, sx, sy, 13 * sc * SPR);
-              blit(g, S.suitcase, sx + side * 9 * sc * SPR, sy, sc * SPR);
-              blit(g, f, sx, sy, sc * SPR);
+              this.drawShadow(g, sx, sy, 13 * sc * PED_SPR);
+              blit(g, S.suitcase, sx + side * 9 * sc * PED_SPR, sy, sc * PED_SPR);
+              blit(g, f, sx, sy, sc * PED_SPR);
             },
           });
           break;
@@ -1338,11 +1494,12 @@ export class Stage implements Scene {
           break;
         }
         case 'kickboard': {
+          const kf = S.kickboardGirl[Math.floor(this.time * 8 + o.phase * 4) % 2];
           items.push({
             z: o.curZ,
             fn: () => {
               this.drawShadow(g, sx, sy, 15 * sc * SPR);
-              blit(g, S.kickboard, sx, sy, sc * SPR);
+              blit(g, kf, sx, sy, sc * SPR);
             },
           });
           break;
@@ -1351,8 +1508,8 @@ export class Stage implements Scene {
           items.push({
             z: o.curZ,
             fn: () => {
-              this.drawShadow(g, sx, sy, 9 * sc * SPR);
-              blit(g, S.cardman, sx, sy, sc * SPR);
+              this.drawShadow(g, sx, sy, 9 * sc * PED_SPR);
+              blit(g, S.cardman, sx, sy, sc * PED_SPR);
               if (!o.done) {
                 // 名刺を差し出す「!」
                 const bob2 = Math.sin(this.time * 6) > 0 ? 0 : 1;
@@ -1487,6 +1644,31 @@ export class Stage implements Scene {
     }
   }
 
+  /** すれ違う集団の雑談吹き出し（プレイヤーの吹き出しとは別枠、集団側のワールド座標に出す） */
+  private drawChatBubbles(g: CanvasRenderingContext2D, camX: number): void {
+    for (const c of this.chatBubbles) {
+      const sx = sxOf(c.x, camX, c.z);
+      if (sx < -60 || sx > VW + 60) continue;
+      const sy = zToY(c.z) - 30 * scaleAt(c.z) * SPR;
+      const alpha = c.t < 0.3 ? c.t / 0.3 : Math.min(1, (2.4 - c.t) / 0.2);
+      g.globalAlpha = Math.max(0, Math.min(1, alpha));
+      const w = Math.min(180, textWidth(c.text, 9) + 8);
+      const x0 = Math.round(sx - w / 2);
+      const y0 = Math.round(sy - 14);
+      g.fillStyle = '#fff3c2';
+      g.fillRect(x0, y0, w, 13);
+      g.fillStyle = '#8a7a3c';
+      g.fillRect(x0, y0 - 1, w, 1);
+      g.fillRect(x0, y0 + 13, w, 1);
+      g.fillRect(x0 - 1, y0, 1, 13);
+      g.fillRect(x0 + w, y0, 1, 13);
+      g.fillStyle = '#fff3c2';
+      g.fillRect(Math.round(sx - 2), y0 + 13, 3, 2);
+      text(g, c.text, x0 + 3, y0 + 1, { size: 9, color: '#5a4a1e' });
+      g.globalAlpha = 1;
+    }
+  }
+
   private drawHud(g: CanvasRenderingContext2D): void {
     const { i18n } = this.ctx;
     // HUD帯
@@ -1496,8 +1678,8 @@ export class Stage implements Scene {
     g.fillRect(0, HUD_TOP, VW, 1);
 
     const rowY = HUD_TOP + 5;
-    // DAY
-    bitmapText(g, `DAY${this.day}`, 5, rowY, { color: '#ffd94d' });
+    // WAVE
+    bitmapText(g, `WAVE${this.waveIdx}`, 5, rowY, { color: '#ffd94d' });
     // TIME（制限は無く、クリア時の★評価に使うだけの計測用）
     bitmapText(g, 'TIME', 44, rowY, { color: '#8f86b8' });
     bitmapText(g, fmtTime(this.timer), 72, rowY, { color: '#f5f1e8' });
@@ -1538,17 +1720,16 @@ export class Stage implements Scene {
       color: this.ctx.audio.muted ? '#ff5a32' : '#8f86b8',
     });
 
-    // 下段: 日付・スピード風味
+    // 下段: 地名・スピード風味（WAVEが進むほど砂漠化していく世界観）
     const place =
-      this.day === 3
+      this.waveIdx === 3
         ? i18n.lang === 'ja'
           ? 'みなとみらい砂漠'
           : 'MINATOMIRAI DESERT'
         : i18n.lang === 'ja'
           ? 'みなとみらい'
           : 'MINATOMIRAI';
-    const sub = i18n.lang === 'ja' ? `7月${21 + this.day}日 ${place}` : `JULY ${21 + this.day} ${place}`;
-    text(g, sub, 5, HUD_TOP + 18, { size: 10, color: '#6a6090' });
+    text(g, place, 5, HUD_TOP + 18, { size: 10, color: '#6a6090' });
     bitmapText(g, `${(this.v * 3.6).toFixed(0)}KM/H`, VW - 45, HUD_TOP + 20, { color: '#6a6090' });
   }
 
@@ -1559,9 +1740,9 @@ export class Stage implements Scene {
       g.fillRect(0, 0, VW, VH);
       const a = Math.min(1, this.stateT / 0.3);
       g.globalAlpha = a;
-      text(g, i18n.t(`day${this.day}.title`), VW / 2, 78, { size: 12, color: '#ffd94d', align: 'center', scale: 2, bold: true });
-      text(g, i18n.t(`day${this.day}.sub`), VW / 2, 122, { size: 12, color: '#f5f1e8', align: 'center', bold: true });
-      text(g, i18n.t(`day${this.day}.tip`), VW / 2, 150, { size: 10, color: '#8f86b8', align: 'center' });
+      text(g, i18n.t(`wave${this.waveIdx}.title`), VW / 2, 78, { size: 12, color: '#ffd94d', align: 'center', scale: 2, bold: true });
+      text(g, i18n.t(`wave${this.waveIdx}.sub`), VW / 2, 122, { size: 12, color: '#f5f1e8', align: 'center', bold: true });
+      text(g, i18n.t(`wave${this.waveIdx}.tip`), VW / 2, 150, { size: 10, color: '#8f86b8', align: 'center' });
       g.globalAlpha = 1;
     } else if (this.state === 'ready') {
       bitmapText(g, this.stateT < 0.9 ? 'READY...' : 'GO!', VW / 2, 100, {
@@ -1584,8 +1765,8 @@ export class Stage implements Scene {
         });
       }
       g.globalAlpha = 1;
-    } else if (this.state === 'play' && this.day === 1 && this.timer > 6.5 && this.timer < 9.5) {
-      // ダッシュ教示（初日のみ）
+    } else if (this.state === 'play' && this.waveIdx === 1 && this.timer > 6.5 && this.timer < 9.5) {
+      // ダッシュ教示（WAVE1のみ）
       g.globalAlpha = Math.min(0.9, (9.5 - this.timer) / 1.5, (this.timer - 6.5) / 0.5);
       text(g, i18n.t('hint.dash'), VW / 2, 36, { size: 10, color: '#ffd94d', align: 'center', outline: '#221833' });
       g.globalAlpha = 1;
@@ -1606,6 +1787,16 @@ export class Stage implements Scene {
       if (this.stateT > 0.3) {
         bitmapText(g, 'GOAL!!', VW / 2, 86, { color: '#ffd94d', align: 'center', scale: 3, shadow: '#221833' });
       }
+    }
+
+    // WAVE切替バナー（プレイを止めずに数秒だけ重ねる）
+    if (this.waveBannerT > 0 && this.state === 'play') {
+      const a = Math.min(1, this.waveBannerT / 0.4, (2.2 - this.waveBannerT) / 0.4);
+      g.globalAlpha = Math.max(0, a);
+      g.fillStyle = 'rgba(20,16,31,0.55)';
+      g.fillRect(0, 64, VW, 40);
+      bitmapText(g, this.waveBannerLabel, VW / 2, 76, { color: '#ffd94d', align: 'center', scale: 2, shadow: '#221833' });
+      g.globalAlpha = 1;
     }
 
     if (this.paused) {

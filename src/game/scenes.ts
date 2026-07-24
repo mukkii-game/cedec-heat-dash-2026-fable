@@ -6,7 +6,6 @@ import { fmtTime } from '../core/i18n';
 import { Background, THEMES, zToY, scaleAt, PSX } from '../gfx/bg';
 import { blit } from '../gfx/pix';
 import { pixCircle, makeStation } from '../gfx/wallart';
-import { COURSES } from './course';
 import type { Ctx, Scene } from './ctx';
 
 const NIGHT = '#14101f';
@@ -56,9 +55,8 @@ export class TitleScene implements Scene {
   private bg: Background;
   private t = 0;
   private camX = 0;
-  private menu = new Menu(4);
-  private mode: 'press' | 'menu' | 'days' = 'press';
-  private daySel = 0;
+  private menu = new Menu(3);
+  private mode: 'press' | 'menu' = 'press';
 
   constructor(ctx: Ctx) {
     this.ctx = ctx;
@@ -93,39 +91,14 @@ export class TitleScene implements Scene {
       return;
     }
 
-    if (this.mode === 'menu') {
-      const rows = [0, 1, 2, 3].map((i) => ({ y: 152 + i * 20 - 4, h: 20 }));
-      const tapped = this.menu.tap(this.ctx, rows);
-      if (tapped !== null) {
-        this.menu.sel = tapped;
-        this.activate();
-        return;
-      }
-      if (this.menu.update(this.ctx, dt) === 'ok') this.activate();
-      return;
-    }
-
-    // day select
-    const unlocked = this.unlockedDays();
-    const rows = unlocked.concat([-1]).map((_, i) => ({ y: 152 + i * 20 - 4, h: 20 }));
+    const rows = [0, 1, 2].map((i) => ({ y: 152 + i * 20 - 4, h: 20 }));
     const tapped = this.menu.tap(this.ctx, rows);
     if (tapped !== null) {
-      this.daySel = tapped;
-      this.activateDay();
+      this.menu.sel = tapped;
+      this.activate();
       return;
     }
-    if (this.menu.update(this.ctx, dt) === 'ok') {
-      this.daySel = this.menu.sel;
-      this.activateDay();
-    }
-  }
-
-  private unlockedDays(): number[] {
-    const { save } = this.ctx;
-    const out = [1];
-    if (save.data.cleared[0] && COURSES[2]) out.push(2);
-    if (save.data.cleared[1] && COURSES[3]) out.push(3);
-    return out;
+    if (this.menu.update(this.ctx, dt) === 'ok') this.activate();
   }
 
   private activate(): void {
@@ -133,33 +106,18 @@ export class TitleScene implements Scene {
     audio.sfx('uiOk');
     switch (this.menu.sel) {
       case 0:
-        if (save.data.seenOp) this.ctx.gotoStage(1, true);
+        if (save.data.seenOp) this.ctx.gotoStage(1);
         else this.ctx.gotoOp();
         break;
       case 1:
-        this.mode = 'days';
-        this.menu = new Menu(this.unlockedDays().length + 1);
-        break;
-      case 2:
         i18n.toggle();
         save.data.lang = i18n.lang;
         save.write();
         break;
-      case 3:
+      case 2:
         this.ctx.toggleMute();
         break;
     }
-  }
-
-  private activateDay(): void {
-    const days = this.unlockedDays();
-    this.ctx.audio.sfx('uiOk');
-    if (this.daySel >= days.length) {
-      this.mode = 'menu';
-      this.menu = new Menu(4);
-      return;
-    }
-    this.ctx.gotoStage(days[this.daySel], false);
   }
 
   render(g: CanvasRenderingContext2D): void {
@@ -211,26 +169,16 @@ export class TitleScene implements Scene {
         text(g, i18n.t('title.press'), VW / 2, 172, { size: 11, color: '#ffd94d', align: 'center', bold: true });
       }
       text(g, i18n.t('title.controls'), VW / 2, 190, { size: 8, color: '#8f86b8', align: 'center' });
-      // ベストタイム
-      const bests = save.data.best;
-      if (bests.some((b) => b !== null)) {
-        let bx = VW / 2 - 100;
-        for (let i = 0; i < 3; i++) {
-          const b = bests[i];
-          bitmapText(g, `DAY${i + 1} ${b === null ? '--' : fmtTime(b)}`, bx, 208, { color: '#8f86b8' });
-          bx += 78;
-        }
-      }
-      if (save.data.bestTotal !== null) {
-        bitmapText(g, `${i18n.lang === 'ja' ? 'TOTAL' : 'TOTAL'} ${fmtTime(save.data.bestTotal)}`, VW / 2, 222, {
+      // ベストタイム（通し1本分）
+      if (save.data.best !== null) {
+        bitmapText(g, `${i18n.t('title.best')} ${fmtTime(save.data.best)}`, VW / 2, 210, {
           color: '#ffd94d',
           align: 'center',
         });
       }
-    } else if (this.mode === 'menu') {
+    } else {
       const labels = [
         i18n.t('title.start'),
-        i18n.t('title.day'),
         i18n.t('title.lang'),
         this.ctx.audio.muted ? i18n.t('title.soundOff') : i18n.t('title.sound'),
       ];
@@ -243,25 +191,6 @@ export class TitleScene implements Scene {
           bold: sel,
         });
       }
-    } else {
-      const days = this.unlockedDays();
-      const bests = save.data.best;
-      for (let i = 0; i < days.length; i++) {
-        const sel = this.menu.sel === i;
-        const b = bests[days[i] - 1];
-        text(g, `${sel ? '▶ ' : '  '}DAY ${days[i]}  ${b === null ? '' : fmtTime(b)}`, VW / 2, 150 + i * 20, {
-          size: 11,
-          color: sel ? '#f5f1e8' : '#8f86b8',
-          align: 'center',
-          bold: sel,
-        });
-      }
-      const sel = this.menu.sel === days.length;
-      text(g, (sel ? '▶ ' : '  ') + (i18n.lang === 'ja' ? 'もどる' : 'BACK'), VW / 2, 150 + days.length * 20, {
-        size: 11,
-        color: sel ? '#f5f1e8' : '#8f86b8',
-        align: 'center',
-      });
     }
 
     text(g, '© 2026 HEAT DASH PROJECT', VW / 2, VH - 14, { size: 8, color: '#4a4468', align: 'center' });
@@ -296,7 +225,7 @@ export class OpScene implements Scene {
       if (this.panel >= 3) {
         this.ctx.save.data.seenOp = true;
         this.ctx.save.write();
-        this.ctx.gotoStage(1, true);
+        this.ctx.gotoStage(1);
       }
     }
   }
@@ -356,14 +285,12 @@ export class ResultScene implements Scene {
   private ctx: Ctx;
   private t = 0;
   private menu = new Menu(3);
-  readonly day: number;
   private time: number;
   private stars: number;
   private isBest: boolean;
 
-  constructor(ctx: Ctx, day: number, time: number, stars: number, isBest: boolean) {
+  constructor(ctx: Ctx, time: number, stars: number, isBest: boolean) {
     this.ctx = ctx;
-    this.day = day;
     this.time = time;
     this.stars = stars;
     this.isBest = isBest;
@@ -372,10 +299,6 @@ export class ResultScene implements Scene {
   enter(): void {
     this.t = 0;
     this.ctx.music.play('goal');
-  }
-
-  private get hasNext(): boolean {
-    return this.ctx.fullRun && COURSES[this.day + 1] !== undefined;
   }
 
   update(dt: number): void {
@@ -391,7 +314,7 @@ export class ResultScene implements Scene {
     if (this.t < 1.2) return;
 
     if (input.retryPressed) {
-      this.ctx.gotoStage(this.day, this.ctx.fullRun);
+      this.ctx.gotoStage(1);
       return;
     }
     const rows = [0, 1, 2].map((i) => ({ y: 172 + i * 20 - 4, h: 20 }));
@@ -408,18 +331,10 @@ export class ResultScene implements Scene {
     this.ctx.audio.sfx('uiOk');
     switch (this.menu.sel) {
       case 0:
-        if (this.hasNext) {
-          this.ctx.runTimes[this.day - 1] = this.time;
-          this.ctx.gotoStage(this.day + 1, true);
-        } else if (this.ctx.fullRun) {
-          this.ctx.runTimes[this.day - 1] = this.time;
-          this.ctx.gotoEd();
-        } else {
-          this.ctx.gotoTitle();
-        }
+        this.ctx.gotoEd();
         break;
       case 1:
-        this.ctx.gotoStage(this.day, this.ctx.fullRun);
+        this.ctx.gotoStage(1);
         break;
       case 2:
         this.ctx.gotoTitle();
@@ -436,7 +351,7 @@ export class ResultScene implements Scene {
     g.fillStyle = '#3ec6c0';
     g.fillRect(60, 30, VW - 120, 2);
 
-    text(g, `DAY ${this.day}  ${i18n.t('res.clear')}`, VW / 2, 44, {
+    text(g, i18n.t('res.clear'), VW / 2, 44, {
       size: 12,
       color: '#ffd94d',
       align: 'center',
@@ -461,7 +376,7 @@ export class ResultScene implements Scene {
       text(g, i18n.t(`res.star${this.stars}`), VW / 2, 122, { size: 9, color: '#ffd94d', align: 'center' });
     }
 
-    const best = save.data.best[this.day - 1];
+    const best = save.data.best;
     if (best !== null) {
       bitmapText(g, `${i18n.t('res.best')} ${fmtTime(best)}`, VW / 2, 140, { color: '#8f86b8', align: 'center' });
     }
@@ -470,11 +385,7 @@ export class ResultScene implements Scene {
     }
 
     if (this.t > 1.2) {
-      const labels = [
-        this.hasNext ? i18n.t('res.next') : this.ctx.fullRun ? 'ED →' : i18n.t('res.toTitle'),
-        i18n.t('res.retry'),
-        i18n.t('res.toTitle'),
-      ];
+      const labels = [i18n.t('res.toEd'), i18n.t('res.retry'), i18n.t('res.toTitle')];
       for (let i = 0; i < 3; i++) {
         const sel = this.menu.sel === i;
         text(g, (sel ? '▶ ' : '  ') + labels[i], VW / 2, 170 + i * 20, {
@@ -506,14 +417,13 @@ const CREDITS: [string, string][] = [
   ['水分 / 塩分 / 日陰のみなさん', 'WATER / SALT / ALL SHADES'],
   ['そして走った あなた', 'AND YOU, WHO RAN'],
   ['', ''],
-  ['ミナトは、3日間 完走した。', 'Minato survived all three days.'],
+  ['ミナトは、めざせCEDECを走り抜いた。', 'Minato ran the whole way to CEDEC.'],
 ];
 
 export class EdScene implements Scene {
   private ctx: Ctx;
   private t = 0;
-  private phase: 'lobby' | 'result' | 'credits' | 'fin' = 'lobby';
-  private isBestTotal = false;
+  private phase: 'lobby' | 'credits' | 'fin' = 'lobby';
 
   constructor(ctx: Ctx) {
     this.ctx = ctx;
@@ -522,8 +432,6 @@ export class EdScene implements Scene {
   enter(): void {
     this.t = 0;
     this.ctx.music.play('ed');
-    const total = this.ctx.runTimes.reduce((a, b) => a + b, 0);
-    if (total > 0) this.isBestTotal = this.ctx.save.recordTotal(total);
   }
 
   update(dt: number): void {
@@ -533,17 +441,9 @@ export class EdScene implements Scene {
     switch (this.phase) {
       case 'lobby':
         if (this.t > 7.5 || (this.t > 1 && tapped)) {
-          this.phase = 'result';
-          this.t = 0;
-          this.ctx.audio.sfx('uiOk');
-        }
-        break;
-      case 'result':
-        if (this.t > 1.6 && this.t - dt <= 1.6) this.ctx.audio.sfx('rank');
-        if (this.t > 2 && this.isBestTotal && this.t - dt <= 2) this.ctx.audio.sfx('record');
-        if (this.t > 6 || (this.t > 2.2 && tapped)) {
           this.phase = 'credits';
           this.t = 0;
+          this.ctx.audio.sfx('uiOk');
         }
         break;
       case 'credits': {
@@ -561,12 +461,12 @@ export class EdScene implements Scene {
   }
 
   render(g: CanvasRenderingContext2D): void {
-    const { i18n, save } = this.ctx;
+    const { i18n } = this.ctx;
     g.fillStyle = NIGHT;
     g.fillRect(0, 0, VW, VH);
 
     if (this.phase === 'lobby') {
-      // 冷房の効いた会場ロビー（青の世界＝3日間の暑さとの対比）
+      // 冷房の効いた会場ロビー（クールダウンした世界＝暑さとの対比）
       const bands = ['#1a2a4a', '#1e3458', '#244068', '#2a4c78', '#305888'];
       for (let i = 0; i < bands.length; i++) {
         g.fillStyle = bands[i];
@@ -604,33 +504,6 @@ export class EdScene implements Scene {
             bold: isPunch,
           });
         }
-      }
-      return;
-    }
-
-    if (this.phase === 'result') {
-      const total = this.ctx.runTimes.reduce((a, b) => a + b, 0);
-      text(g, i18n.t('total.title'), VW / 2, 36, { size: 12, color: '#ffd94d', align: 'center', bold: true });
-      for (let i = 0; i < 3; i++) {
-        const tm = this.ctx.runTimes[i];
-        const show = this.t > 0.4 + i * 0.35;
-        if (show && tm > 0) {
-          bitmapText(g, `DAY${i + 1}`, VW / 2 - 90, 68 + i * 18, { color: '#8f86b8' });
-          bitmapText(g, fmtTime(tm), VW / 2 + 60, 68 + i * 18, { color: '#f5f1e8', align: 'right' });
-        }
-      }
-      if (this.t > 1.6) {
-        g.fillStyle = '#3ec6c0';
-        g.fillRect(VW / 2 - 90, 126, 150, 1);
-        bitmapText(g, i18n.t('total.sum'), VW / 2 - 90, 136, { color: '#3ec6c0' });
-        bitmapText(g, fmtTime(total), VW / 2 + 60, 132, { color: '#ffd94d', align: 'right', scale: 2 });
-      }
-      if (this.t > 2 && this.isBestTotal && Math.floor(this.t * 3) % 2 === 0) {
-        bitmapText(g, i18n.t('total.newRecord'), VW / 2, 168, { color: '#ffd94d', align: 'center' });
-      }
-      const bt = save.data.bestTotal;
-      if (bt !== null && this.t > 1.8) {
-        bitmapText(g, `${i18n.t('res.best')} ${fmtTime(bt)}`, VW / 2, 190, { color: '#8f86b8', align: 'center' });
       }
       return;
     }

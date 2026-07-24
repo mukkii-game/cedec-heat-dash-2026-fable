@@ -16,8 +16,8 @@ test.describe('CEDEC HEAT DASH 2026 - smoke', () => {
     expect(errors, `console errors: ${errors.join('\n')}`).toEqual([]);
   });
 
-  test('keyboard: start -> menu -> can reach a stage', async ({ page }) => {
-    await page.goto('/?day=1&auto=1');
+  test('keyboard: start -> menu -> can reach the stage', async ({ page }) => {
+    await page.goto('/?wave=1&auto=1');
     await page.waitForTimeout(500);
     await page.keyboard.press('Enter');
     await page.waitForTimeout(1500);
@@ -37,37 +37,43 @@ test.describe('CEDEC HEAT DASH 2026 - smoke', () => {
     await expect(canvas).toBeVisible();
   });
 
-  test('day1 autopilot clears within limit and no console errors', async ({ page }) => {
+  test('full course (WAVE1->3) autopilot clears within limit and no console errors', async ({ page }, testInfo) => {
+    // 通しクリアは決定論的（obstacle位相はhash(座標)由来で乱数を使わない）なので、
+    // ビューポートを変えても結果は変わらない。実時間で約125秒かかる重いテストを
+    // 4サイズ分冗長に走らせるとCPU競合でかえって不安定になるため、1プロジェクトのみで検証する。
+    test.skip(testInfo.project.name !== 'desktop-chromium', 'deterministic clear only needs to run once');
     const errors: string[] = [];
     page.on('console', (m) => {
       if (m.type() === 'error') errors.push(m.text());
     });
     page.on('pageerror', (e) => errors.push(String(e)));
 
-    await page.goto('/?day=1&auto=1');
+    await page.goto('/?wave=1&auto=1');
     await page.waitForTimeout(500);
     await page.keyboard.press('Enter');
-    // Standard autopilot clears Day1 in ~30s plus the ~2.5s post-goal rest
-    // animation before the result screen; give it a comfortable margin.
-    await page.waitForTimeout(45_000);
+    // 実測クリアタイムは約125秒。余裕を持たせて待つ。
+    await page.waitForFunction(() => (window as any).__debug?.sceneName === 'ResultScene', null, { timeout: 200_000 });
 
+    const sceneName = await page.evaluate(() => (window as any).__debug?.sceneName ?? null);
+    expect(sceneName).toBe('ResultScene');
     expect(errors, `console errors: ${errors.join('\n')}`).toEqual([]);
   });
 
-  test('best time persists across reload', async ({ page }) => {
-    await page.goto('/?day=1&auto=1');
+  test('best time persists across reload', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop-chromium', 'depends on the full-clear test above; no need to repeat per viewport');
+    await page.goto('/?wave=1&auto=1');
     await page.waitForTimeout(500);
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(42_000);
+    await page.waitForFunction(() => (window as any).__debug?.sceneName === 'ResultScene', null, { timeout: 200_000 });
 
-    const saved = await page.evaluate(() => localStorage.getItem('cedec-heat-dash-2026:v1'));
+    const saved = await page.evaluate(() => localStorage.getItem('cedec-heat-dash-2026:v2'));
     expect(saved).not.toBeNull();
     const parsed = JSON.parse(saved!);
-    expect(parsed.best[0]).not.toBeNull();
+    expect(parsed.best).not.toBeNull();
 
     await page.reload();
     await page.waitForTimeout(500);
-    const savedAfter = await page.evaluate(() => localStorage.getItem('cedec-heat-dash-2026:v1'));
+    const savedAfter = await page.evaluate(() => localStorage.getItem('cedec-heat-dash-2026:v2'));
     expect(savedAfter).toEqual(saved);
   });
 });

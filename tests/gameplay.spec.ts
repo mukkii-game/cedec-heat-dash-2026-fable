@@ -3,27 +3,45 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 test.describe('CEDEC HEAT DASH 2026 - gameplay', () => {
-  // 標準オートパイロットの実測クリアタイム(約30/43/47秒)に十分な余裕を持たせた待機
-  const DAY_WAIT_MS: Record<1 | 2 | 3, number> = { 1: 45_000, 2: 60_000, 3: 70_000 };
-  for (const day of [1, 2, 3] as const) {
-    test(`day${day} autopilot clears within limit, no console errors`, async ({ page }) => {
-      const errors: string[] = [];
-      page.on('console', (m) => {
-        if (m.type() === 'error') errors.push(m.text());
-      });
-      page.on('pageerror', (e) => errors.push(String(e)));
-
-      await page.goto(`/?day=${day}&auto=1`);
-      await page.waitForTimeout(500);
-      await page.keyboard.press('Enter');
-      await page.waitForTimeout(DAY_WAIT_MS[day]);
-
-      expect(errors, `console errors: ${errors.join('\n')}`).toEqual([]);
+  test('WAVE1 start reaches the WAVE2 checkpoint, no console errors', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('console', (m) => {
+      if (m.type() === 'error') errors.push(m.text());
     });
-  }
+    page.on('pageerror', (e) => errors.push(String(e)));
+
+    await page.goto('/?wave=1&auto=1');
+    await page.waitForTimeout(500);
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => (window as any).__debug?.waveIdx === 2, null, { timeout: 60_000 });
+
+    expect(errors, `console errors: ${errors.join('\n')}`).toEqual([]);
+  });
+
+  test('WAVE3 direct-start (debug jump) runs and makes progress, no console errors', async ({ page }) => {
+    // ?wave=3はデバッグ専用の直行入口で、実際のプレイヤーが通る経路ではない
+    // （通しプレイならWAVE3到達時には速度もヒートも前区間からの持ち越し状態になるが、
+    // デバッグ直行はreset()相当の初期状態から始まるため、障害物の正弦位相との巡り合わせ次第で
+    // 通しプレイより不利になり得る）。ここではクラッシュしないこと・前進することだけを検証する。
+    const errors: string[] = [];
+    page.on('console', (m) => {
+      if (m.type() === 'error') errors.push(m.text());
+    });
+    page.on('pageerror', (e) => errors.push(String(e)));
+
+    await page.goto('/?wave=3&auto=1');
+    await page.waitForTimeout(500);
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => ((window as any).__debug?.px ?? 0) > 780, null, { timeout: 30_000 });
+
+    expect(errors, `console errors: ${errors.join('\n')}`).toEqual([]);
+  });
+
+  // 通しクリアの検証（決定論的なので1プロジェクトのみで十分）は
+  // smoke.spec.ts の「full course (WAVE1->3) autopilot clears」に集約している。
 
   test('pause freezes the in-game timer; resume continues it', async ({ page }) => {
-    await page.goto('/?day=1&auto=1');
+    await page.goto('/?wave=1&auto=1');
     await page.waitForTimeout(500);
     await page.keyboard.press('Enter');
     await page.waitForTimeout(3200); // ready->play
@@ -50,21 +68,21 @@ test.describe('CEDEC HEAT DASH 2026 - gameplay', () => {
   });
 
   test('mute toggles and persists to localStorage', async ({ page }) => {
-    await page.goto('/?day=1&auto=1');
+    await page.goto('/?wave=1&auto=1');
     await page.waitForTimeout(500);
     await page.keyboard.press('Enter');
     await page.waitForTimeout(1000);
     await page.keyboard.press('KeyM');
     await page.waitForTimeout(300);
     const saved = await page.evaluate(() => {
-      const raw = localStorage.getItem('cedec-heat-dash-2026:v1');
+      const raw = localStorage.getItem('cedec-heat-dash-2026:v2');
       return raw ? JSON.parse(raw).mute : null;
     });
     expect(saved).toBe(true);
   });
 
   test('retry (R) restarts the stage from zero', async ({ page }) => {
-    await page.goto('/?day=1&auto=1');
+    await page.goto('/?wave=1&auto=1');
     await page.waitForTimeout(500);
     await page.keyboard.press('Enter');
     await page.waitForTimeout(3200);
@@ -80,7 +98,7 @@ test.describe('CEDEC HEAT DASH 2026 - gameplay', () => {
   });
 
   test('page and body never scroll (no accidental overflow)', async ({ page }) => {
-    await page.goto('/?day=1&auto=1');
+    await page.goto('/?wave=1&auto=1');
     await page.waitForTimeout(500);
     await page.keyboard.press('Enter');
     await page.waitForTimeout(3200);

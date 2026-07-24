@@ -2,8 +2,12 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  timeout: 100_000,
+  timeout: 230_000,
   fullyParallel: true,
+  // 通しクリアを検証するテストはrequestAnimationFrame駆動の実時間シミュレーションのため、
+  // 並列数を上げるとCPU競合でフレームレートが落ち、ゲーム内時間の進みが遅れて
+  // タイムアウトする（実際のクリア可能性とは無関係）。完全直列にして安定させる。
+  workers: 1,
   retries: 0,
   reporter: [['list']],
   use: {

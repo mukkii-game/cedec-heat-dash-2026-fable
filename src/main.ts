@@ -35,21 +35,17 @@ async function boot(): Promise<void> {
     audio,
     music,
     sprites,
-    runTimes: [0, 0, 0],
-    fullRun: true,
     gotoTitle() {
       setScene(new TitleScene(ctx));
     },
     gotoOp() {
       setScene(new OpScene(ctx));
     },
-    gotoStage(day, fullRun) {
-      ctx.fullRun = fullRun;
-      if (day === 1) ctx.runTimes = [0, 0, 0];
-      setScene(new Stage(ctx, day));
+    gotoStage(startWave = 1) {
+      setScene(new Stage(ctx, startWave));
     },
-    gotoResult(day, time, stars, isBest) {
-      setScene(new ResultScene(ctx, day, time, stars, isBest));
+    gotoResult(time, stars, isBest) {
+      setScene(new ResultScene(ctx, time, stars, isBest));
     },
     gotoEd() {
       setScene(new EdScene(ctx));
@@ -76,6 +72,25 @@ async function boot(): Promise<void> {
       const s = scene as unknown as { timer?: number };
       return typeof s.timer === 'number' ? s.timer : null;
     },
+    get heat(): number | null {
+      const s = scene as unknown as { heat?: number };
+      return typeof s.heat === 'number' ? s.heat : null;
+    },
+    get px(): number | null {
+      const s = scene as unknown as { px?: number };
+      return typeof s.px === 'number' ? s.px : null;
+    },
+    get state(): string | null {
+      const s = scene as unknown as { state?: string };
+      return typeof s.state === 'string' ? s.state : null;
+    },
+    get waveIdx(): number | null {
+      const s = scene as unknown as { waveIdx?: number };
+      return typeof s.waveIdx === 'number' ? s.waveIdx : null;
+    },
+    get sceneName(): string {
+      return scene.constructor.name;
+    },
   };
 
   input.onFirstGesture = () => audio.unlock();
@@ -84,10 +99,10 @@ async function boot(): Promise<void> {
   if (params.has('sprites')) {
     const { SpriteDebugScene } = await import('./game/debugScene');
     setScene(new SpriteDebugScene(ctx));
-  } else if (params.has('day')) {
-    // 開発用: 指定日へ直行
-    const d = Math.min(3, Math.max(1, parseInt(params.get('day') ?? '1', 10) || 1));
-    setScene(new Stage(ctx, d));
+  } else if (params.has('wave')) {
+    // 開発用: 指定WAVEへ直行
+    const w = Math.min(3, Math.max(1, parseInt(params.get('wave') ?? '1', 10) || 1));
+    setScene(new Stage(ctx, w));
   } else {
     setScene(new TitleScene(ctx));
   }

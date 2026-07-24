@@ -35,14 +35,16 @@ const MAX_GLARE = 10.8;
 const DASH_MULT = 1.4; // ダッシュ時の上限倍率
 const BRAKE_V = 2.6;
 const SAND_MULT = 0.6;
-// ヒート（0=快適 100=熱中症）。日向で上がり日陰で下がる
+// ヒート（0=快適 100=熱中症）。日向で上がり日陰で下がる。
+// レートは基本的に環境（日向/日陰/照り返し/ミスト）で決まる。
+// ブレーキは速度だけを変えるので、結果的に「その区間に留まる時間」が変わり、
+// 日陰でゆっくり過ごせば回復量が多くなる（レート自体は変えない）。
+// ダッシュだけは、速く走れる代わりにレートへ少しだけ上乗せする（若干の代償）。
 const HEAT_SUN = 2.2;
 const HEAT_SHADE = -3.0;
 const HEAT_GLARE = 5.5;
 const HEAT_MIST = -12.0;
-const HEAT_DASH_SUN = 4.3; // ダッシュ中の追加ヒート（日向合計+6.5/s＝押しっぱなしが安全な支配戦略にならない水準）
-const HEAT_DASH_SHADE = 2.4;
-const BRAKE_HEAT_MULT = 0.55; // ブレーキ中は日向の蓄熱を抑える
+const HEAT_DASH_BONUS = 0.8;
 const STORE_TIME = 1.4;
 const STORE_COOL = 55;
 const CARD_TIME = 0.7;
@@ -497,7 +499,8 @@ export class Stage implements Scene {
     const zRate = this.airT >= 0 ? 0.3 : this.stumbleT > 0 ? 0.5 : 1;
     this.pz = Math.min(0.97, Math.max(0.03, this.pz + moveY * Z_SPEED * zRate * dt));
 
-    // 環境と速度（ダッシュ=速いが熱い / ブレーキ=遅いが涼しく安全）
+    // 環境と速度（ダッシュ=速いがその分早く区間を抜ける / ブレーキ=遅い分だけ長く留まる。
+    // ヒートの「レート」自体はダッシュ/ブレーキで変わらず、環境だけで決まる）
     const env = this.env(this.px, this.pz);
     this.inShade = env.shaded;
     if (this.recoverFlashT > 0) this.recoverFlashT = Math.max(0, this.recoverFlashT - dt);
@@ -506,10 +509,8 @@ export class Stage implements Scene {
     this.dashing = moveX > 0.35 && this.stumbleT <= 0;
     this.braking = moveX < -0.35;
     let targetV = env.maxV;
-    let dashHeat = 0;
     if (this.dashing) {
       targetV = env.maxV * DASH_MULT;
-      dashHeat = env.shaded ? HEAT_DASH_SHADE : HEAT_DASH_SUN;
       if (!wasDashing) audio.sfx('dash');
     } else if (this.braking) {
       targetV = Math.min(targetV, BRAKE_V);
@@ -535,9 +536,8 @@ export class Stage implements Scene {
       if (wv) this.enterWave(wv);
     }
 
-    // ヒート収支
-    let heatRate = env.heatRate + dashHeat;
-    if (this.braking && heatRate > 0) heatRate *= BRAKE_HEAT_MULT;
+    // ヒート収支（レートは環境が基本。ブレーキは滞在時間だけを変え、ダッシュだけ少し上乗せする）
+    const heatRate = env.heatRate + (this.dashing ? HEAT_DASH_BONUS : 0);
     this.heat = Math.min(100, Math.max(0, this.heat + heatRate * dt));
     if (this.heat >= 100) {
       this.state = 'rescue';

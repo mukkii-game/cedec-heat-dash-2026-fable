@@ -100,7 +100,7 @@ const STR: Record<string, [string, string]> = {
   'hint.jumpKey': ['SPACE ジャンプ', 'SPACE JUMP'],
   'hint.moveTouch': ['左ドラッグ：移動＋加減速', 'DRAG LEFT: MOVE + SPEED'],
   'hint.jumpTouch': ['右タップ：ジャンプ', 'TAP RIGHT: JUMP'],
-  'hint.dash': ['ダッシュは速いが、あつい！', 'Dashing is fast... and HOT!'],
+  'hint.dash': ['日向はダッシュで一気に駆け抜けろ！', "Dash through the sun—don't linger!"],
 
   // すれ違う集団のぺちゃくちゃ雑談（横浜ネタ、プレイヤーのセリフとは別枠）
   'chat.1': ['赤レンガ倉庫、寄ってく？', 'Wanna stop by the Red Brick Warehouse?'],

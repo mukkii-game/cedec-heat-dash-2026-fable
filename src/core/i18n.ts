@@ -4,17 +4,7 @@ export type Lang = 'ja' | 'en';
 
 const STR: Record<string, [string, string]> = {
   // タイトル
-  'title.sub': ['〜徒歩5分・体感30分〜', '"A 5-min walk that feels like 30"'],
   'title.press': ['タップ / SPACE でスタート', 'TAP / SPACE TO START'],
-  'title.controls': [
-    '↑↓/WSで移動 ←→/ADで加減速 SPACE/ENTER/クリックでジャンプ',
-    '↑↓/WS MOVE  ←→/AD SPEED  SPACE/ENTER/CLICK JUMP',
-  ],
-  'title.start': ['さいしょから', 'START'],
-  'title.lang': ['LANG: 日本語', 'LANG: ENGLISH'],
-  'title.sound': ['サウンド: ON', 'SOUND: ON'],
-  'title.soundOff': ['サウンド: OFF', 'SOUND: OFF'],
-  'title.best': ['ベスト', 'BEST'],
 
   // OP
   'op.1': [
@@ -67,6 +57,9 @@ const STR: Record<string, [string, string]> = {
   'q.checkpoint3': ['げ、砂漠になってる!?', 'Wait, it turned into a DESERT!?'],
   'q.goalFinal': ['着いた！ 会場すずしい！！', 'Made it! Sweet AC!!'],
   'q.shadeCool': ['シュワー…生き返る', 'Fizz... I feel alive again.'],
+  'q.canKick': ['ナイスキック！', 'Nice kick!'],
+  'q.canStomp': ['ひんやり…！', 'Ahh, so cool...!'],
+  'q.canFull': ['完全復活！！', 'Fully recovered!!'],
 
   // HUD
   'hud.day': ['DAY', 'DAY'],
@@ -87,10 +80,9 @@ const STR: Record<string, [string, string]> = {
   'res.star2': ['さすが健脚', 'SPEED WALKER'],
   'res.star1': ['とうちゃくが優勝', 'ARRIVING IS WINNING'],
 
-  // ゲームオーバー
-  'go.title': ['熱中症でリタイア…', 'HEAT KO...'],
-  'go.sub': ['水分、大事。', 'Hydrate or diedrate.'],
-  'go.retry': ['リトライ (R)', 'RETRY (R)'],
+  // 熱中症からの救助（レッドブルー救助隊。ゲームオーバーは無く、タイムロスで済む）
+  'q.rescueOffer': ['はい、レッドブルーどうぞ！', "Here, have a Red-Blue!"],
+  'q.rescued': ['生き返った…！でもタイムが…', "I'm alive...! But my time..."],
 
   // ED
   'ed.1': ['冷房の効いたロビーで、', 'In the air-conditioned lobby,'],

@@ -155,6 +155,47 @@ export function blitHeatTint(
   ctx.drawImage(sc, 0, 0, s.w, s.h, dx, dy, w, h);
 }
 
+/**
+ * スプライト全体に薄い色を一様に重ねる（日陰の青いミストなど、frac無しの
+ * 全身オーバーレイ用。blitHeatTintと同じsource-atop手法だが濃さは固定alpha）。
+ */
+export function blitOverlayTint(
+  ctx: CanvasRenderingContext2D,
+  s: Sprite,
+  x: number,
+  y: number,
+  scale: number,
+  tintColor: string,
+  alpha: number,
+): void {
+  if (!tintScratch) {
+    tintScratch = document.createElement('canvas');
+    tintScratchCtx = tintScratch.getContext('2d')!;
+    tintScratchCtx.imageSmoothingEnabled = false;
+  }
+  const sc = tintScratch;
+  const cx = tintScratchCtx!;
+  if (sc.width !== s.w || sc.height !== s.h) {
+    sc.width = s.w;
+    sc.height = s.h;
+  } else {
+    cx.clearRect(0, 0, s.w, s.h);
+  }
+  cx.drawImage(s.c, 0, 0);
+  cx.globalCompositeOperation = 'source-atop';
+  cx.globalAlpha = alpha;
+  cx.fillStyle = tintColor;
+  cx.fillRect(0, 0, s.w, s.h);
+  cx.globalAlpha = 1;
+  cx.globalCompositeOperation = 'source-over';
+
+  const w = Math.max(1, Math.round(s.w * scale));
+  const h = Math.max(1, Math.round(s.h * scale));
+  const dx = Math.round(x - w * s.ox);
+  const dy = Math.round(y - h * s.oy);
+  ctx.drawImage(sc, 0, 0, s.w, s.h, dx, dy, w, h);
+}
+
 /** 単純な色置換コピー（モブ量産・日別パレット差し替え用） */
 export function recolor(s: Sprite, from: string[], to: string[]): Sprite {
   const c = document.createElement('canvas');

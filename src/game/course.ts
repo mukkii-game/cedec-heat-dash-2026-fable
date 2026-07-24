@@ -27,13 +27,15 @@ export type ObType =
   | 'drink'
   | 'energy'
   | 'brick'
-  | 'kickboard';
+  | 'kickboard'
+  | 'canRoll'
+  | 'canKick';
 
 export interface ObDef {
   type: ObType;
   x: number;
   z: number;
-  /** ped: 移動速度(m/s, 正=前方へ)。cart/kickboard: sin振動の速さ。brick: 接近速度 */
+  /** ped: 移動速度(m/s, 正=前方へ)。cart/kickboard: sin振動の速さ。brick/canRoll: 接近速度 */
   v?: number;
   /** ped/kickboard: z振動の振幅 */
   zAmp?: number;
@@ -121,6 +123,8 @@ const WAVE1_SRC: CourseSection = {
     { type: 'ped', x: 20, z: 0.35, v: 0, variant: 2 },
     // S0: 初障害物（ジャンプでも迂回でも良い）
     { type: 'cone', x: 32, z: 0.75 },
+    // 蹴れるレッドブルー缶（お試し。蹴って遊んでも、踏んで回復してもいい）
+    { type: 'canKick', x: 48, z: 0.5 },
     // S1: 日陰側の観光客
     { type: 'ped', x: 68, z: 0.18, v: -0.6, variant: 0 },
     { type: 'ped', x: 86, z: 0.28, v: 0.5, variant: 1 },
@@ -139,15 +143,24 @@ const WAVE1_SRC: CourseSection = {
     { type: 'gull', x: 166, z: 0.55 },
     { type: 'drink', x: 141, z: 0.92 },
     { type: 'coolbox', x: 133, z: 0.05 },
+    // 転がるレッドブルー巨大缶（プレイヤーサイズ。ジャンプか上下移動で回避）
+    { type: 'canRoll', x: 180, z: 0.5, v: 2.6 },
     // S3: レーザー区間（回避手段は影/減速/奥）
     { type: 'ped', x: 197, z: 0.8, v: 0.3, variant: 3 },
     { type: 'ped', x: 210, z: 0.6, v: -0.6, variant: 1, zAmp: 0.16 },
     { type: 'kickboard', x: 222, z: 0.5, zAmp: 0.32 },
+    // 蹴れるレッドブルー缶（ラストスパート前のご褒美）
+    { type: 'canKick', x: 244, z: 0.5 },
     // S4: 分岐 — 日向(奥)は障害物2つ、日陰(手前)は遅いがクリーン
     { type: 'cardman', x: 236, z: 0.48 },
     { type: 'planter', x: 252, z: 0.2 },
     { type: 'cone', x: 264, z: 0.32 },
     { type: 'drink', x: 258, z: 0.08 },
+    // ゴール直前、低障害物のスラローム（WAVE1終盤の「やたら多い」を担う締めの一押し）
+    { type: 'cone', x: 270, z: 0.68 },
+    { type: 'planter', x: 274, z: 0.42 },
+    { type: 'coolbox', x: 278, z: 0.62 },
+    { type: 'cone', x: 282, z: 0.3 },
   ],
   lasers: [
     // 初レーザー: 手前側z0.35〜1に着弾。奥のビル影に入るか、減速 or 加速で外す
@@ -214,6 +227,8 @@ const WAVE2_SRC: CourseSection = {
     { type: 'suitcase', x: 120, z: 0.55, v: -0.4, variant: 3 },
     { type: 'cardman', x: 130, z: 0.32 },
     { type: 'drink', x: 100, z: 0.08 },
+    // 転がるレッドブルー巨大缶
+    { type: 'canRoll', x: 108, z: 0.5, v: 2.8 },
     // 買い物帰りの3人組（横並びで塞ぐ集団。ぎゅっと密集していて一気には抜けられない）
     { type: 'ped', x: 140, z: 0.34, v: -0.3, variant: 1, chat: true },
     { type: 'ped', x: 141, z: 0.46, v: -0.3, variant: 3 },
@@ -221,6 +236,8 @@ const WAVE2_SRC: CourseSection = {
     // すぐ後ろにもう一組続き、この一帯だけ「やたらおおい」密度にする
     { type: 'ped', x: 144, z: 0.3, v: -0.35, variant: 2 },
     { type: 'ped', x: 145, z: 0.44, v: -0.35, variant: 0 },
+    // 蹴れるレッドブルー缶
+    { type: 'canKick', x: 155, z: 0.5 },
     // S2: 照り返し直線。中央が速いが熱い。缶は照り返しの中
     { type: 'ped', x: 152, z: 0.12, v: -0.5, variant: 1 },
     { type: 'planter', x: 164, z: 0.85 },
@@ -230,10 +247,12 @@ const WAVE2_SRC: CourseSection = {
     { type: 'ped', x: 196, z: 0.88, v: 0.4, variant: 0 },
     { type: 'gull', x: 176, z: 0.4 },
     { type: 'brick', x: 210, z: 0.55, v: 2.4 },
-    // S3: 砂の縫い目
+    // S3: 砂の縫い目。ここは赤レンガが連続する「レンガ地帯」テーマ区間
     { type: 'dune', x: 228, z: 0.35 },
+    { type: 'brick', x: 234, z: 0.55, v: 2.6 },
     { type: 'coolbox', x: 240, z: 0.9 },
     { type: 'dune', x: 256, z: 0.75 },
+    { type: 'brick', x: 262, z: 0.4, v: 2.8 },
     { type: 'ped', x: 264, z: 0.6, v: -0.4, variant: 3, zAmp: 0.18 },
     { type: 'drink', x: 274, z: 0.15 },
     { type: 'gull', x: 288, z: 0.3 },
@@ -246,7 +265,9 @@ const WAVE2_SRC: CourseSection = {
     { type: 'ped', x: 367, z: 0.44, v: -0.3, variant: 0 },
     { type: 'ped', x: 368, z: 0.56, v: -0.3, variant: 3 },
     { type: 'cone', x: 372, z: 0.45 },
+    { type: 'coolbox', x: 376, z: 0.72 },
     { type: 'brick', x: 380, z: 0.35, v: 2.8 },
+    { type: 'planter', x: 388, z: 0.85 },
     { type: 'drink', x: 384, z: 0.8 },
     // 迷惑キックボード女子、2台同時に爆走（単発でなく「たくさん一度に」の例）
     { type: 'kickboard', x: 392, z: 0.55, zAmp: 0.3, v: 3.4 },
@@ -315,6 +336,8 @@ const WAVE3_SRC: CourseSection = {
     { type: 'dune', x: 116, z: 0.3 },
     { type: 'brick', x: 124, z: 0.35, v: 2.8 },
     { type: 'gull', x: 136, z: 0.5 },
+    // 転がるレッドブルー巨大缶
+    { type: 'canRoll', x: 148, z: 0.5, v: 3.0 },
     { type: 'tumbleweed', x: 158, z: 0.2 },
     { type: 'coolbox', x: 176, z: 0.7 },
     { type: 'drink', x: 190, z: 0.15 },
@@ -327,6 +350,8 @@ const WAVE3_SRC: CourseSection = {
     { type: 'kickboard', x: 240, z: 0.28, zAmp: 0.2, v: 3.8 },
     { type: 'kickboard', x: 246, z: 0.72, zAmp: 0.2, v: 4.0 },
     { type: 'suitcase', x: 258, z: 0.15, v: -0.3, variant: 1 },
+    // 蹴れるレッドブルー缶（オアシス近く）
+    { type: 'canKick', x: 263, z: 0.5 },
     // 砂漠を渡る旅行者の集団（3人、影を求めて肩を寄せ合い固まって歩く）
     { type: 'ped', x: 270, z: 0.36, v: -0.25, variant: 1, chat: true },
     { type: 'ped', x: 271, z: 0.48, v: -0.25, variant: 0 },
@@ -345,9 +370,12 @@ const WAVE3_SRC: CourseSection = {
     { type: 'ped', x: 398, z: 0.3, v: -0.2, variant: 0, chat: true },
     { type: 'ped', x: 399, z: 0.42, v: -0.2, variant: 2 },
     { type: 'ped', x: 400, z: 0.54, v: -0.2, variant: 1 },
+    { type: 'dune', x: 405, z: 0.75 },
     // ここから先(408-434)はスイープ日射レーザーの通り道。新ギミックは詰め込まない
     { type: 'cardman', x: 414, z: 0.55 },
+    { type: 'tumbleweed', x: 420, z: 0.25 },
     { type: 'energy', x: 428, z: 0.1 },
+    { type: 'ped', x: 432, z: 0.68, v: -0.2, variant: 2 },
     // 熱走ラストラン: 障害は薄く、ヒートとの勝負（ここは意図的に密度を抑える）
     { type: 'dune', x: 452, z: 0.5 },
     { type: 'drink', x: 466, z: 0.25 },

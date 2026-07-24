@@ -461,7 +461,7 @@ export class Background {
     const b = target ? Math.min(1, Math.max(0, target.blend)) : 0;
     const sx = target ? homeX + (target.x - homeX) * b : homeX;
     const sy = target ? homeY + (target.y - homeY) * b : homeY;
-    const r = t.giantSun ? 30 : 10;
+    const r = t.giantSun ? 60 : 20;
     const pulse = 1 + Math.sin(time * 2) * 0.04;
     // 攻撃(警告〜照射)が近づくほど凶悪な赤へ変わる
     const angry = b;

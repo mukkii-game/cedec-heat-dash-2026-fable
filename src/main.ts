@@ -99,6 +99,10 @@ async function boot(): Promise<void> {
   if (params.has('sprites')) {
     const { SpriteDebugScene } = await import('./game/debugScene');
     setScene(new SpriteDebugScene(ctx));
+  } else if (params.has('catalog')) {
+    const { CatalogScene } = await import('./game/catalogScene');
+    const idx = parseInt(params.get('idx') ?? '0', 10) || 0;
+    setScene(new CatalogScene(ctx, idx));
   } else if (params.has('wave')) {
     // 開発用: 指定WAVEへ直行
     const w = Math.min(3, Math.max(1, parseInt(params.get('wave') ?? '1', 10) || 1));

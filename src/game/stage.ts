@@ -4,7 +4,7 @@ import { VW, VH, FLOOR_TOP, HUD_TOP } from '../core/video';
 import { bitmapText, text, textWidth } from '../core/font';
 import { fmtTime } from '../core/i18n';
 import { Background, THEMES, zToY, scaleAt, ppmAt, sxOf, PSX, hash } from '../gfx/bg';
-import { blit, blitHeatTint, flipX, type Sprite } from '../gfx/pix';
+import { blit, blitHeatTint, blitOverlayTint, flipX, type Sprite } from '../gfx/pix';
 import {
   makeTree,
   makePalm,
@@ -57,10 +57,32 @@ const GULL_TRIGGER_DIST = 18; // m
 const GULL_WARN_T = 1.0; // s
 const GULL_DIVE_T = 0.6; // s
 const GULL_HIT_FROM = 0.15; // dive開始からの被弾有効化(s)
-/** 表示用スプライト倍率（画面上の存在感。当たり判定はメートル系で不変） */
+/** 表示用スプライト倍率（画面上の存在感。当たり判定はメートル系で不変）。
+ * 環境オブジェクト（低障害物・台車・回転草・砂丘・レンガ等）はこのまま。 */
 const SPR = 1.45;
-/** 歩行者・通行人系はもう一段階大きく見せ、障害物としての邪魔さを強調する */
-const PED_SPR = SPR * 1.16;
+/** 主人公・カモメ・キックボードなど「動くキャラ」は2倍表示 */
+const CHAR_SPR = SPR * 2;
+/** 歩行者・スーツケース・名刺交換マンは従来の1.16倍ブースト込みでさらに2倍 */
+const PED_SPR = SPR * 1.16 * 2;
+/** ドリンク（レッドブルー）は2倍表示 */
+const DRINK_SPR = SPR * 2;
+/** 転がるレッドブルー巨大缶。プレイヤーとほぼ同サイズ */
+const CANROLL_SPR = CHAR_SPR;
+/** 蹴れるレッドブルー缶。プレイヤーの約半分サイズ */
+const CANKICK_SPR = CHAR_SPR * 0.5;
+/** 蹴れる缶をスタンプ(踏みつぶし)した時のヒート回復量。カウント(1〜3)ごと。3で全回復 */
+const CANKICK_HEAL = [20, 45, 100];
+/** キック1回あたりに前方へ飛ぶ距離のレンジ(m) */
+const CANKICK_LAUNCH_MIN = 9;
+const CANKICK_LAUNCH_RANGE = 7;
+
+// ---- 熱中症からの救助（ゲームオーバー廃止。ヒート100%で即死ではなく、
+// レッドブルー救助隊が駆けつけてヒートを全回復させる代わりにタイムを消費する） ----
+const RESCUE_COLLAPSE_T = 1.0; // 倒れ込む演出
+const RESCUE_APPROACH_T = 0.6; // 救助のお姉さんが駆けつける
+const RESCUE_DRINK_T = 1.6; // レッドブルーを飲ませる（ヒートが見た目にも減っていく）
+const RESCUE_DEPART_T = 0.5; // 去っていく
+const RESCUE_TOTAL_T = RESCUE_COLLAPSE_T + RESCUE_APPROACH_T + RESCUE_DRINK_T + RESCUE_DEPART_T;
 
 interface Particle {
   x: number;
@@ -85,6 +107,7 @@ interface Ob extends ObDef {
   gullState?: 'idle' | 'warn' | 'dive' | 'gone';
   gullT?: number;
   chatted?: boolean; // chat: trueな集団の代表ped。雑談吹き出しを出し終えたか
+  kickCount?: number; // canKick: 何回蹴られたか(0〜3)
 }
 
 interface LaserRt {
@@ -105,7 +128,7 @@ interface ChatBubble {
   t: number;
 }
 
-type StState = 'intro' | 'ready' | 'play' | 'goal' | 'dead';
+type StState = 'intro' | 'ready' | 'play' | 'goal' | 'rescue';
 
 export class Stage implements Scene {
   private ctx: Ctx;
@@ -281,7 +304,7 @@ export class Stage implements Scene {
       this.spawnP(PSX, zToY(this.pz) - 14, (Math.random() - 0.5) * 60, -Math.random() * 50, 0.4, '#ffd94d', 2, 120);
     }
     if (this.heat >= 100) {
-      this.state = 'dead';
+      this.state = 'rescue';
       this.stateT = 0;
       this.ctx.music.stop();
       this.ctx.audio.sfx('collapse');
@@ -309,15 +332,15 @@ export class Stage implements Scene {
     const { input, audio, i18n, music } = this.ctx;
 
     // ポーズ切替
-    if ((this.state === 'play' || this.state === 'ready') && input.pausePressed) {
+    if ((this.state === 'play' || this.state === 'ready' || this.state === 'rescue') && input.pausePressed) {
       this.paused = !this.paused;
       audio.sfx('uiOk');
     }
     // プレイ中でもRで即リトライ（「失敗してもすぐ再挑戦」を貫くため、
-    // ポーズ/死亡後だけでなくいつでも効くようにする）
+    // ポーズ中や救助シーケンス中でもいつでも効くようにする）
     if (
       !this.paused &&
-      (this.state === 'play' || this.state === 'ready' || this.state === 'intro') &&
+      (this.state === 'play' || this.state === 'ready' || this.state === 'intro' || this.state === 'rescue') &&
       input.retryPressed
     ) {
       audio.sfx('uiOk');
@@ -381,8 +404,8 @@ export class Stage implements Scene {
       case 'goal':
         this.updateGoal(dt);
         break;
-      case 'dead':
-        this.updateDead(dt);
+      case 'rescue':
+        this.updateRescue(dt);
         break;
     }
     music.update();
@@ -485,6 +508,7 @@ export class Stage implements Scene {
 
     // 環境と速度（ダッシュ=速いが熱い / ブレーキ=遅いが涼しく安全）
     const env = this.env(this.px, this.pz);
+    this.inShade = env.shaded;
     const wasDashing = this.dashing;
     const wasBraking = this.braking;
     this.dashing = moveX > 0.35 && this.stumbleT <= 0;
@@ -524,7 +548,7 @@ export class Stage implements Scene {
     if (this.braking && heatRate > 0) heatRate *= BRAKE_HEAT_MULT;
     this.heat = Math.min(100, Math.max(0, this.heat + heatRate * dt));
     if (this.heat >= 100) {
-      this.state = 'dead';
+      this.state = 'rescue';
       this.stateT = 0;
       music.stop();
       audio.sfx('collapse');
@@ -666,6 +690,8 @@ export class Stage implements Scene {
   private wasShaded = false;
   private wasMist = false;
   private shadeFizzT = 0;
+  /** 日陰にいるか（drawPlayerの青いミストオーバーレイ用） */
+  private inShade = false;
 
   /** WAVE切替: 曲・背景テーマを差し替え、ヒートを少し逃がしてバナーを出す（プレイは止めない） */
   private enterWave(wv: Wave): void {
@@ -708,27 +734,50 @@ export class Stage implements Scene {
     }
   }
 
-  private updateDead(dt: number): void {
-    const { input } = this.ctx;
-    if (this.stateT > 1.2) {
-      if (input.retryPressed || input.jumpPressed || input.confirmPressed) {
-        this.ctx.audio.sfx('uiOk');
-        this.reset();
-        return;
-      }
-      for (const tp of input.taps) {
-        if (tp.y > 150 && tp.y < 200) {
-          this.ctx.audio.sfx('uiOk');
-          this.reset();
-          return;
-        }
-        if (tp.y >= 200 && tp.y < 230) {
-          this.ctx.gotoTitle();
-          return;
-        }
-      }
+  /**
+   * 熱中症からの救助シーケンス。ゲームオーバーは無く、レッドブルー救助隊が
+   * ヒートを全回復させてくれる代わりにタイムを消費する（誰でもクリアできるが、
+   * 何度も倒れるほどタイムロスが積み重なり★評価が下がる）。
+   */
+  private updateRescue(dt: number): void {
+    const { audio, i18n, music } = this.ctx;
+    // 停止中も進行中のギミックは律儀に動き続ける（＝救助中でも世界は待ってくれない）
+    this.updateObs(dt);
+    this.updateLasers(dt);
+    // タイムロスとしてそのまま計測に加算する
+    this.timer += dt;
+
+    const drinkStart = RESCUE_COLLAPSE_T + RESCUE_APPROACH_T;
+    if (this.stateT >= drinkStart && this.stateT - dt < drinkStart) {
+      audio.sfx('drink');
+      this.quip(i18n.t('q.rescueOffer'), true);
     }
-    void dt;
+    if (this.stateT >= drinkStart && this.stateT < drinkStart + RESCUE_DRINK_T) {
+      if (Math.random() < dt * 16) {
+        this.spawnP(
+          PSX + (Math.random() - 0.5) * 16,
+          zToY(this.pz) - 22,
+          (Math.random() - 0.5) * 24,
+          -30 - Math.random() * 10,
+          0.55,
+          Math.random() < 0.5 ? '#e8342a' : '#f5f1e8',
+          2,
+          -14,
+        );
+      }
+      // ヒートが見た目にもすーっと下がっていく
+      const drinkProgress = (this.stateT - drinkStart) / RESCUE_DRINK_T;
+      this.heat = Math.max(0, 100 * (1 - drinkProgress));
+    }
+
+    if (this.stateT >= RESCUE_TOTAL_T) {
+      this.heat = 0;
+      this.invulnT = 1.0;
+      this.state = 'play';
+      this.stateT = 0;
+      music.play(this.course.waves[this.waveIdx - 1].song);
+      this.quip(i18n.t('q.rescued'), true);
+    }
   }
 
   /** 簡易オートパイロット: 影を好み、障害物を避け/跳び、レーザー帯から逃げ、熱が高いとコンビニへ */
@@ -784,7 +833,7 @@ export class Stage implements Scene {
       }
     }
     for (const o of this.obs) {
-      if (o.taken || o.done || o.type === 'drink' || o.type === 'energy') continue;
+      if (o.taken || o.done || o.type === 'drink' || o.type === 'energy' || o.type === 'canKick') continue;
       if (o.type === 'gull' && o.gullState !== 'warn' && o.gullState !== 'dive') continue;
       const dx = o.curX - this.px;
       if (dx < 0.5 || dx > 10) continue;
@@ -796,7 +845,8 @@ export class Stage implements Scene {
         o.type === 'coolbox' ||
         o.type === 'tumbleweed' ||
         o.type === 'dune' ||
-        o.type === 'brick';
+        o.type === 'brick' ||
+        o.type === 'canRoll';
       if (jumpable && dx < this.v * 0.32 && this.airT < 0) {
         jump = true;
       } else if (!jumpable) {
@@ -872,6 +922,12 @@ export class Stage implements Scene {
             this.firstBrick = true;
             this.quip(this.ctx.i18n.t('q.brick'));
           }
+          break;
+        }
+        case 'canRoll': {
+          // 横倒しで回転しながら転がってくる、プレイヤーサイズのレッドブルー巨大缶
+          o.curX -= (o.v ?? 2.6) * dt;
+          o.curZ = o.baseZ + Math.sin(this.time * 1.6 + o.phase) * 0.08;
           break;
         }
       }
@@ -1018,6 +1074,43 @@ export class Stage implements Scene {
         case 'brick':
           if (!jumpClear && Math.abs(dx) < 0.9 && dz < 0.13) this.damage(11);
           break;
+        case 'canRoll':
+          if (!jumpClear && Math.abs(dx) < 1.3 && dz < 0.15) this.damage(12);
+          break;
+        case 'canKick':
+          if (Math.abs(dx) < 1.0 && dz < 0.16) {
+            if (this.airT >= 0) {
+              // スタンプ: 踏みつぶして冷却液を浴びる。カウントが高いほどよく冷える
+              const count = Math.min(3, Math.max(1, o.kickCount ?? 1));
+              o.taken = true;
+              if (count >= 3) this.heat = 0;
+              else this.heat = Math.max(0, this.heat - CANKICK_HEAL[count - 1]);
+              this.ctx.audio.sfx('drink');
+              this.quip(this.ctx.i18n.t(count >= 3 ? 'q.canFull' : 'q.canStomp'));
+              for (let i = 0; i < 12; i++) {
+                this.spawnP(
+                  PSX + (Math.random() - 0.5) * 20,
+                  zToY(this.pz) - 10,
+                  (Math.random() - 0.5) * 50,
+                  -40 - Math.random() * 30,
+                  0.5,
+                  Math.random() < 0.5 ? '#2f6fd8' : '#e8342a',
+                  2,
+                  60,
+                );
+              }
+            } else {
+              // キック: カウントを進めて前方へ蹴り飛ばす。何度でも蹴れる
+              o.kickCount = Math.min(3, (o.kickCount ?? 0) + 1);
+              const launch = CANKICK_LAUNCH_MIN + hash(o.x * 3.1 + o.kickCount * 7.7) * CANKICK_LAUNCH_RANGE;
+              o.curX = this.px + launch;
+              o.baseZ = Math.min(0.9, Math.max(0.1, o.curZ + (hash(o.x * 5.3 + o.kickCount) - 0.5) * 0.3));
+              o.curZ = o.baseZ;
+              this.ctx.audio.sfx('jump');
+              this.quip(this.ctx.i18n.t('q.canKick'));
+            }
+          }
+          break;
       }
     }
   }
@@ -1066,6 +1159,7 @@ export class Stage implements Scene {
     this.drawWall(g, camX);
     this.drawGoalArch(g, camX, false);
     this.drawEntities(g, camX);
+    if (this.state === 'rescue') this.drawRescueLady(g);
     this.drawGoalArch(g, camX, true);
     this.drawLaserBeams(g, camX);
 
@@ -1403,11 +1497,11 @@ export class Stage implements Scene {
           items.push({
             z: o.curZ,
             fn: () => {
-              this.drawShadow(g, sx, sy, 8 * sc * SPR);
-              blit(g, S.drink, sx, sy - 6 + bob, sc * SPR);
+              this.drawShadow(g, sx, sy, 8 * sc * DRINK_SPR);
+              blit(g, S.drink, sx, sy - 6 + bob, sc * DRINK_SPR);
               if (Math.sin(this.time * 5 + o.phase) > 0.7) {
                 g.fillStyle = '#fff';
-                g.fillRect(Math.round(sx + 4 * sc), Math.round(sy - 12 + bob), 1, 1);
+                g.fillRect(Math.round(sx + 6 * sc), Math.round(sy - 18 + bob), 1, 1);
               }
             },
           });
@@ -1498,8 +1592,36 @@ export class Stage implements Scene {
           items.push({
             z: o.curZ,
             fn: () => {
-              this.drawShadow(g, sx, sy, 15 * sc * SPR);
-              blit(g, kf, sx, sy, sc * SPR);
+              this.drawShadow(g, sx, sy, 15 * sc * CHAR_SPR);
+              blit(g, kf, sx, sy, sc * CHAR_SPR);
+            },
+          });
+          break;
+        }
+        case 'canRoll': {
+          const f = S.canRoll[Math.floor(this.time * 6 + o.phase * 3) % 4];
+          items.push({
+            z: o.curZ,
+            fn: () => {
+              this.drawShadow(g, sx, sy, 14 * sc * CANROLL_SPR, 'rgba(34,24,51,0.3)');
+              blit(g, f, sx, sy, sc * CANROLL_SPR);
+            },
+          });
+          break;
+        }
+        case 'canKick': {
+          const count = o.kickCount ?? 0;
+          const bob = Math.sin(this.time * 3 + o.phase) * 1.5;
+          items.push({
+            z: o.curZ,
+            fn: () => {
+              this.drawShadow(g, sx, sy, 8 * sc * CANKICK_SPR);
+              blit(g, S.canKick, sx, sy + bob, sc * CANKICK_SPR);
+              bitmapText(g, String(Math.max(1, count)), sx, sy - 22 * sc * CANKICK_SPR + bob, {
+                color: '#ffd94d',
+                align: 'center',
+                shadow: '#221833',
+              });
             },
           });
           break;
@@ -1526,7 +1648,7 @@ export class Stage implements Scene {
             items.push({
               z: o.curZ,
               fn: () => {
-                if (blink) this.drawShadow(g, sx, sy, 10 * sc * SPR, 'rgba(34,24,51,0.55)');
+                if (blink) this.drawShadow(g, sx, sy, 10 * sc * CHAR_SPR, 'rgba(34,24,51,0.55)');
               },
             });
           } else if (o.gullState === 'dive') {
@@ -1536,8 +1658,8 @@ export class Stage implements Scene {
             items.push({
               z: o.curZ,
               fn: () => {
-                this.drawShadow(g, sx, sy, 10 * sc * SPR);
-                blit(g, f, sx, by, sc * SPR);
+                this.drawShadow(g, sx, sy, 10 * sc * CHAR_SPR);
+                blit(g, f, sx, by, sc * CHAR_SPR);
               },
             });
           }
@@ -1568,13 +1690,18 @@ export class Stage implements Scene {
     if (this.invulnT > 0 && Math.floor(this.time * 16) % 2 === 0 && this.state === 'play') return;
 
     const airFrac = this.airT >= 0 ? Math.sin((Math.PI * this.airT) / JUMP_T) : 0;
-    const jy = airFrac * JUMP_H * sc * SPR;
-    this.drawShadow(g, PSX, sy, (12 - airFrac * 5) * sc * SPR);
+    const jy = airFrac * JUMP_H * sc * CHAR_SPR;
+    this.drawShadow(g, PSX, sy, (12 - airFrac * 5) * sc * CHAR_SPR);
 
     let spr: Sprite;
-    if (this.state === 'dead') {
-      const i = Math.min(2, Math.floor(this.stateT / 0.35));
-      spr = S.collapse[i];
+    if (this.state === 'rescue') {
+      if (this.stateT < RESCUE_COLLAPSE_T) {
+        const i = Math.min(2, Math.floor(this.stateT / 0.35));
+        spr = S.collapse[i];
+      } else {
+        // 介抱を受けている間は座り込んで受け取るポーズ
+        spr = S.restKneel;
+      }
     } else if (this.state === 'goal' && this.stateT > 1.3) {
       spr = S.restKneel;
     } else if (this.state === 'goal' && this.stateT > 0.4) {
@@ -1601,7 +1728,13 @@ export class Stage implements Scene {
     g.translate(-PSX, -anchorY);
     // 危険域(ヒート85%以上)は明滅を重ねて「死にそう」を体そのもので伝える
     const heatPulse = this.heat >= 85 ? Math.max(0, Math.sin(this.time * 10)) * 0.15 : 0;
-    blitHeatTint(g, spr, PSX, sy - jy, sc * SPR, this.heat / 100, undefined, heatPulse);
+    blitHeatTint(g, spr, PSX, sy - jy, sc * CHAR_SPR, this.heat / 100, undefined, heatPulse);
+    // 日陰にいる間は全身に青いミストをかけて「冷えている」感を出す
+    if (this.inShade && this.state === 'play') {
+      g.globalAlpha = 0.4 + Math.sin(this.time * 3) * 0.08;
+      blitOverlayTint(g, spr, PSX, sy - jy, sc * CHAR_SPR, '#5cb8f5', 0.6);
+      g.globalAlpha = 1;
+    }
     g.restore();
 
     // 高速オーラ（ダッシュ中の残像）
@@ -1611,17 +1744,48 @@ export class Stage implements Scene {
       g.rotate(this.tiltAngle);
       g.translate(-PSX, -anchorY);
       g.globalAlpha = 0.22;
-      blit(g, spr, PSX - 8, sy - jy, sc * SPR);
+      blit(g, spr, PSX - 8, sy - jy, sc * CHAR_SPR);
       g.globalAlpha = 0.1;
-      blit(g, spr, PSX - 15, sy - jy, sc * SPR);
+      blit(g, spr, PSX - 15, sy - jy, sc * CHAR_SPR);
       g.globalAlpha = 1;
       g.restore();
     }
+
+    // ヒートゲージを数値で頭上に表示（0%スタート、100%で熱中症）
+    if (this.state === 'play' || this.state === 'rescue') {
+      const heatColor = this.heat >= 85 ? '#ff5a3a' : this.heat >= 60 ? '#ffd94d' : '#f5f1e8';
+      bitmapText(g, `${Math.round(this.heat)}%`, PSX, sy - jy - 44 * sc * CHAR_SPR, {
+        color: heatColor,
+        align: 'center',
+        shadow: '#221833',
+      });
+    }
+  }
+
+  /** レッドブルー救助のお姉さん。巨大な缶を担いで駆けつけ、飲ませて去っていく */
+  private drawRescueLady(g: CanvasRenderingContext2D): void {
+    const t = this.stateT - RESCUE_COLLAPSE_T;
+    if (t < 0) return;
+    const approachP = Math.min(1, t / RESCUE_APPROACH_T);
+    const departStart = RESCUE_APPROACH_T + RESCUE_DRINK_T;
+    const departP = t > departStart ? Math.min(1, (t - departStart) / RESCUE_DEPART_T) : 0;
+    const enterX = PSX + 74;
+    const standX = PSX + 30;
+    const exitX = PSX + 96;
+    const lx = departP > 0 ? standX + (exitX - standX) * departP : enterX + (standX - enterX) * approachP;
+    const sy = zToY(this.pz);
+    const sc = scaleAt(this.pz) * PED_SPR;
+    const frame = this.ctx.sprites.rescueLady[Math.floor(this.time * 6) % 2];
+    // 肩越しに覗く巨大な缶（背負っているシルエット）
+    const bob = Math.sin(this.time * 8) * 1.5;
+    blit(g, this.ctx.sprites.drink, lx + 9, sy - 40 + bob, sc * 2.4);
+    this.drawShadow(g, lx, sy, 10 * sc);
+    blit(g, frame, lx, sy, sc);
   }
 
   private drawQuips(g: CanvasRenderingContext2D): void {
     for (const q of this.quips) {
-      const sy = zToY(this.pz) - 34 * scaleAt(this.pz) * SPR - (this.airT >= 0 ? 12 : 0);
+      const sy = zToY(this.pz) - 34 * scaleAt(this.pz) * CHAR_SPR - (this.airT >= 0 ? 12 : 0);
       const alpha = q.t < 0.3 ? q.t / 0.3 : 1;
       g.globalAlpha = alpha;
       // 幅は実測（文字数ベースの概算だと長い日本語テキストで吹き出しからはみ出すため）
@@ -1649,7 +1813,7 @@ export class Stage implements Scene {
     for (const c of this.chatBubbles) {
       const sx = sxOf(c.x, camX, c.z);
       if (sx < -60 || sx > VW + 60) continue;
-      const sy = zToY(c.z) - 30 * scaleAt(c.z) * SPR;
+      const sy = zToY(c.z) - 30 * scaleAt(c.z) * PED_SPR;
       const alpha = c.t < 0.3 ? c.t / 0.3 : Math.min(1, (2.4 - c.t) / 0.2);
       g.globalAlpha = Math.max(0, Math.min(1, alpha));
       const w = Math.min(180, textWidth(c.text, 9) + 8);
@@ -1770,18 +1934,12 @@ export class Stage implements Scene {
       g.globalAlpha = Math.min(0.9, (9.5 - this.timer) / 1.5, (this.timer - 6.5) / 0.5);
       text(g, i18n.t('hint.dash'), VW / 2, 36, { size: 10, color: '#ffd94d', align: 'center', outline: '#221833' });
       g.globalAlpha = 1;
-    } else if (this.state === 'dead') {
-      if (this.stateT > 0.8) {
-        const a = Math.min(0.8, (this.stateT - 0.8) * 2);
-        g.fillStyle = `rgba(60,16,20,${a * 0.7})`;
+    } else if (this.state === 'rescue') {
+      // ゲームオーバーは無し。倒れ込む瞬間だけ軽く赤む（テキストはセリフ吹き出しに任せる）
+      if (this.stateT < RESCUE_COLLAPSE_T) {
+        const a = Math.min(0.45, this.stateT * 0.7);
+        g.fillStyle = `rgba(60,16,20,${a})`;
         g.fillRect(0, 0, VW, VH);
-        text(g, i18n.t('go.title'), VW / 2, 92, { size: 12, color: '#ff8a70', align: 'center', scale: 2, bold: true });
-        text(g, i18n.t('go.sub'), VW / 2, 128, { size: 10, color: '#f5f1e8', align: 'center' });
-        if (this.stateT > 1.2) {
-          const blink = Math.floor(this.time * 2) % 2 === 0;
-          text(g, i18n.t('go.retry'), VW / 2, 168, { size: 12, color: blink ? '#ffd94d' : '#c8b830', align: 'center', bold: true });
-          text(g, i18n.t('res.toTitle'), VW / 2, 205, { size: 10, color: '#8f86b8', align: 'center' });
-        }
       }
     } else if (this.state === 'goal') {
       if (this.stateT > 0.3) {

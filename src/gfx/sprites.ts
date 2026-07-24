@@ -479,17 +479,62 @@ const COOLBOX = [
 ];
 const COOLBOX_P = { c: '#4aa8e0', C: '#2a6ea8', w: '#f5f1e8' };
 
-// スポドリ缶
+// レッドブルー（朱×青ストライプの缶ジュース。オリジナルの架空ブランド）
 const DRINK = [
-  '.kkkk.',
-  'kwbbwk',
-  'kbwwbk',
-  'kbwwbk',
-  'kbbbbk',
-  'kBbbBk',
-  '.kkkk.',
+  '.kkkkk.',
+  'kbbbbbk',
+  'krrrrrk',
+  'kbbbbbk',
+  'krrrrrk',
+  'kbbbbbk',
+  'krrrrrk',
+  'kBBBBBk',
+  '.kkkkk.',
 ];
-const DRINK_P = { b: '#3a8ae8', B: '#2a5ea8', w: '#f5f1e8' };
+const DRINK_P = { r: '#e8342a', b: '#2f6fd8', B: '#16305c' };
+
+// 転がるレッドブルー缶（横倒しで回転しながら接近する障害物。プレイヤーサイズ）
+const CANROLL_0 = [
+  '..kkkkkkkkkk..',
+  '.kbbbbbbbbbbk.',
+  'krrrrrrrrrrrrk',
+  'kbbbbbbbbbbbbk',
+  'krrrrrrrrrrrrk',
+  'kbbbbbbbbbbbbk',
+  '.kkkkkkkkkkkk.',
+];
+const CANROLL_1 = [
+  '...kkkkkkkkkk.',
+  '..kbbbbbbbbbbk',
+  '.krrrrrrrrrrrk',
+  'kbbbbbbbbbbbbk',
+  'krrrrrrrrrrrk.',
+  'kbbbbbbbbbbk..',
+  '.kkkkkkkkkk...',
+];
+const CANROLL_2 = [
+  '..kkkkkkkkkk..',
+  '.kbbbbbbbbbbk.',
+  'krrrrrrrrrrrrk',
+  'kbbbbbbbbbbbbk',
+  'krrrrrrrrrrrrk',
+  'kbbbbbbbbbbbbk',
+  '.kkkkkkkkkkkk.',
+];
+const CANROLL_3 = [
+  'kkkkkkkkkk....',
+  'kbbbbbbbbbbk..',
+  'krrrrrrrrrrrk.',
+  '.kbbbbbbbbbbbk',
+  '.krrrrrrrrrrrk',
+  '..kbbbbbbbbbbk',
+  '...kkkkkkkkkk.',
+];
+const CANROLL_P = { r: '#e8342a', b: '#2f6fd8' };
+
+// 蹴れるレッドブルー缶（立って落ちている。蹴ると前方へ、着地でスタンプすると回復）
+const CANKICK = ['.kkkk.', 'kbbbbk', 'krrrrk', 'kbbbbk', 'krrrrk', 'kBBBBk', '.kkkk.'];
+const CANKICK_P = { r: '#e8342a', b: '#2f6fd8', B: '#16305c' };
 
 const ENERGY = [
   '.kkkk.',
@@ -732,8 +777,11 @@ export interface SpriteBank {
   suitcase: Sprite;
   sign: Sprite;
   peds: Sprite[][]; // [variant][frame]
+  rescueLady: Sprite[]; // 熱中症で倒れた時に駆けつけるレッドブルー救助のお姉さん
   brick: Sprite[]; // 回転4方向
   kickboardGirl: Sprite[]; // 髪なびき2フレーム
+  canRoll: Sprite[]; // 転がるレッドブルー缶(4回転フレーム)
+  canKick: Sprite; // 蹴れるレッドブルー缶
 }
 
 // 通行人: プレイヤーと同構造の簡略版（2フレーム）を色替え量産
@@ -834,6 +882,8 @@ export function buildSprites(): SpriteBank {
     makePed('#68b868', '#458a48', false, true), // 緑シャツ帽子
     makePed('#e8b83c', '#b8882a', true, false), // 買い物客
   ];
+  // レッドブルー救助のお姉さん（熱中症で倒れると駆けつけて回復させてくれる）
+  const rescueLady = makePed('#e8342a', '#a81f1a', false, true);
 
   return {
     player: { run, jump, stumble, collapse, win, idle, restKneel },
@@ -851,7 +901,10 @@ export function buildSprites(): SpriteBank {
     sign: mk(SIGN, SIGN_P),
     brick: [mk(BRICK_0, BRICK_P), mk(BRICK_1, BRICK_P), mk(BRICK_2, BRICK_P), mk(BRICK_3, BRICK_P)],
     kickboardGirl: [mk(KICKGIRL_0, KICKGIRL_P), mk(KICKGIRL_1, KICKGIRL_P)],
+    canRoll: [mk(CANROLL_0, CANROLL_P), mk(CANROLL_1, CANROLL_P), mk(CANROLL_2, CANROLL_P), mk(CANROLL_3, CANROLL_P)],
+    canKick: mk(CANKICK, CANKICK_P),
     peds,
+    rescueLady,
   };
 }
 

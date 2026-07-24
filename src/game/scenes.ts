@@ -55,8 +55,7 @@ export class TitleScene implements Scene {
   private bg: Background;
   private t = 0;
   private camX = 0;
-  private menu = new Menu(3);
-  private mode: 'press' | 'menu' = 'press';
+  private menu = new Menu(2);
 
   constructor(ctx: Ctx) {
     this.ctx = ctx;
@@ -69,29 +68,14 @@ export class TitleScene implements Scene {
   }
 
   update(dt: number): void {
-    const { input, audio, save, i18n, music } = this.ctx;
+    const { audio, music } = this.ctx;
     this.t += dt;
     this.camX += dt * 6;
     // 音楽はAudioContext解放後に
     if (audio.ctx && !music.isPlaying) music.play('title');
     music.update();
 
-    if (input.mutePressed) this.ctx.toggleMute();
-    if (input.langPressed) {
-      i18n.toggle();
-      save.data.lang = i18n.lang;
-      save.write();
-    }
-
-    if (this.mode === 'press') {
-      if (input.confirmPressed || input.taps.length > 0) {
-        audio.sfx('uiOk');
-        this.mode = 'menu';
-      }
-      return;
-    }
-
-    const rows = [0, 1, 2].map((i) => ({ y: 152 + i * 20 - 4, h: 20 }));
+    const rows = [0, 1].map((i) => ({ y: 100 + i * 24 - 4, h: 22 }));
     const tapped = this.menu.tap(this.ctx, rows);
     if (tapped !== null) {
       this.menu.sel = tapped;
@@ -104,24 +88,14 @@ export class TitleScene implements Scene {
   private activate(): void {
     const { audio, save, i18n } = this.ctx;
     audio.sfx('uiOk');
-    switch (this.menu.sel) {
-      case 0:
-        if (save.data.seenOp) this.ctx.gotoStage(1);
-        else this.ctx.gotoOp();
-        break;
-      case 1:
-        i18n.toggle();
-        save.data.lang = i18n.lang;
-        save.write();
-        break;
-      case 2:
-        this.ctx.toggleMute();
-        break;
-    }
+    i18n.lang = this.menu.sel === 0 ? 'ja' : 'en';
+    save.data.lang = i18n.lang;
+    save.write();
+    if (save.data.seenOp) this.ctx.gotoStage(1);
+    else this.ctx.gotoOp();
   }
 
   render(g: CanvasRenderingContext2D): void {
-    const { i18n, save } = this.ctx;
     this.bg.drawBack(g, this.camX, this.t);
     this.bg.drawFloor(g, this.camX);
 
@@ -129,7 +103,7 @@ export class TitleScene implements Scene {
     const S = this.ctx.sprites.player;
     const dz = 0.62 + Math.sin(this.t * 0.7) * 0.08;
     const dy = zToY(dz);
-    const dsc = scaleAt(dz) * 1.45;
+    const dsc = scaleAt(dz) * 2.9;
     g.fillStyle = 'rgba(34,24,51,0.35)';
     g.fillRect(Math.round(PSX - 8), Math.round(dy) - 1, 17, 2);
     blit(g, S.run[Math.floor(this.t * 10) % 6], PSX, dy, dsc);
@@ -150,50 +124,57 @@ export class TitleScene implements Scene {
     g.fillStyle = '#3ec6c0';
     g.fillRect(0, HUD_TOP, VW, 1);
 
-    // ロゴ（背後に太陽）
-    const ly = 40 + Math.sin(this.t * 1.5) * 2;
-    pixCircle(g, VW / 2, Math.round(ly + 34), 46, 'rgba(255,217,77,0.25)');
-    pixCircle(g, VW / 2, Math.round(ly + 34), 38, 'rgba(255,180,60,0.3)');
-    text(g, 'めざせCEDEC', VW / 2, ly, {
-      size: 24,
-      color: '#ffd94d',
-      align: 'center',
-      bold: true,
-      outline: '#b03042',
-    });
-    bitmapText(g, 'HEAT DASH 2026', VW / 2, ly + 34, { color: '#3ec6c0', align: 'center', scale: 2, shadow: '#221833' });
-    text(g, i18n.t('title.sub'), VW / 2, ly + 60, { size: 10, color: '#f5f1e8', align: 'center' });
+    // ロゴ（背後に太陽、巨大なアーケード風ロゴタイプ）
+    // ペタ塗りの水色〜青＋白フチ＋黒い継ぎ目で立体感を出す3層構成
+    const LOGO_SCALE = 6;
+    const ly = 24 + Math.sin(this.t * 1.5) * 2;
+    pixCircle(g, VW / 2, Math.round(ly + 21), 76, 'rgba(255,217,77,0.22)');
+    pixCircle(g, VW / 2, Math.round(ly + 21), 62, 'rgba(255,180,60,0.28)');
+    // 白い外側の縁取り
+    for (const [ox, oy] of [
+      [-5, -5], [-3, -5], [0, -5], [3, -5], [5, -5],
+      [-5, -3], [5, -3],
+      [-5, 0], [5, 0],
+      [-5, 3], [5, 3],
+      [-5, 5], [-3, 5], [0, 5], [3, 5], [5, 5],
+    ]) {
+      bitmapText(g, 'RETRO-CROSS', VW / 2 + ox, ly + oy, { color: '#ffffff', align: 'center', scale: LOGO_SCALE });
+    }
+    // 黒い継ぎ目（縁がわずかに浮き上がった立体感）
+    for (const [ox, oy] of [
+      [-2, -2], [0, -2], [2, -2],
+      [-2, 0], [2, 0],
+      [-2, 2], [0, 2], [2, 2],
+    ]) {
+      bitmapText(g, 'RETRO-CROSS', VW / 2 + ox, ly + oy, { color: '#1a1a24', align: 'center', scale: LOGO_SCALE });
+    }
+    // 本体（水色と青の間のペタ塗り）
+    bitmapText(g, 'RETRO-CROSS', VW / 2, ly, { color: '#2f9fd8', align: 'center', scale: LOGO_SCALE });
 
-    if (this.mode === 'press') {
-      if (Math.floor(this.t * 2) % 2 === 0) {
-        text(g, i18n.t('title.press'), VW / 2, 172, { size: 11, color: '#ffd94d', align: 'center', bold: true });
-      }
-      text(g, i18n.t('title.controls'), VW / 2, 190, { size: 8, color: '#8f86b8', align: 'center' });
-      // ベストタイム（通し1本分）
-      if (save.data.best !== null) {
-        bitmapText(g, `${i18n.t('title.best')} ${fmtTime(save.data.best)}`, VW / 2, 210, {
-          color: '#ffd94d',
-          align: 'center',
-        });
-      }
-    } else {
-      const labels = [
-        i18n.t('title.start'),
-        i18n.t('title.lang'),
-        this.ctx.audio.muted ? i18n.t('title.soundOff') : i18n.t('title.sound'),
-      ];
-      for (let i = 0; i < labels.length; i++) {
-        const sel = this.menu.sel === i;
-        text(g, (sel ? '▶ ' : '  ') + labels[i], VW / 2, 150 + i * 20, {
-          size: 11,
-          color: sel ? '#f5f1e8' : '#8f86b8',
-          align: 'center',
-          bold: sel,
-        });
-      }
+    // 言語選択（選ぶとそのままスタート）
+    const labels = ['日本語でスタート', 'Start in English'];
+    for (let i = 0; i < labels.length; i++) {
+      const sel = this.menu.sel === i;
+      text(g, (sel ? '▶ ' : '  ') + labels[i], VW / 2, 100 + i * 24, {
+        size: 12,
+        color: sel ? '#ffd94d' : '#f5f1e8',
+        align: 'center',
+        bold: sel,
+      });
     }
 
-    text(g, '© 2026 HEAT DASH PROJECT', VW / 2, VH - 14, { size: 8, color: '#4a4468', align: 'center' });
+    // アーケード風コピーライト表記
+    text(g, '© 2026 MUKKII', VW / 2, 160, { size: 9, color: '#f5f1e8', align: 'center' });
+    text(g, 'ALL RIGHT RESERVED', VW / 2, 173, { size: 9, color: '#f5f1e8', align: 'center' });
+
+    // MUKKIIロゴ（丸みのある太字の赤。NAMCO風パロディ）
+    text(g, 'MUKKII', VW / 2, 190, {
+      size: 22,
+      color: '#e0201e',
+      align: 'center',
+      bold: true,
+      outline: '#7a0f0e',
+    });
   }
 }
 

@@ -7,7 +7,25 @@
 3日分の道のりを1本の通しステージとして繋げ、WAVE1〜3のチェックポイントで
 曲・背景・レベルデザインが切り替わっていく構成です。
 
-**[プレイする（GitHub Pages）](#公開)** ／ ローカル起動は下記参照。
+**[プレイする](https://retrocross.netlify.app/)** ／ ローカル起動は下記参照。
+
+## 現状・引き継ぎメモ（2026年7月24日時点）
+
+- 開発はここで一旦区切り。通しプレイ可能な状態で、`tsc --noEmit`・`npm run build`・
+  Playwright全48テスト中42 passed（6 skippedは同一テストの重複ゲートで意図的）を確認済み。
+- 公開URLは上記の[Netlify](https://retrocross.netlify.app/)（`dist/`を直接デプロイした単発
+  デプロイ。GitHub連携なし）。恒久的な公開先は別途itch.io等へ移す予定で、それまでの仮公開。
+  ディレクターの意向で、プレイヤーにGitHubの存在を見せない方針。
+- **仕様変更・追加開発を行う場合は、必ず先に[GAME_DESIGN.md](GAME_DESIGN.md)（ゲームデザイン
+  仕様）と[ART_DIRECTION.md](ART_DIRECTION.md)（アート方針）を読んで現状を把握し、
+  変更後はコードと一緒にこの2ファイルも更新すること。**両者は実装と同期させる運用で
+  ここまで進めてきているので、齟齬があれば実装ではなくドキュメント側の更新漏れを疑う。
+- 直近の主な変更（詳細はコミットログ参照）: WAVEチェックポイントを跨いでもヒートゲージが
+  リセットされず持ち越されるよう変更／ダッシュ・ブレーキとヒートレートの関係を再設計
+  （ダッシュのみレートに+0.8/sの微加算、ブレーキは滞在時間経由の間接効果のみ）／低障害物の
+  表示スケールを1.7倍に拡大／各WAVE後半に密度の高いゾーン（3人組ブロッカー3連続配置など）
+  を追加／レッドブルー缶の障害物ギミックを丸太転がし風の回転デザインに刷新（蹴れる缶は廃止）
+  ／タイトル副題を「めざせパシフィコ／GO TO PACIFICO」に変更。
 
 ## 遊び方
 
@@ -60,9 +78,14 @@ npm test
 
 ## 公開
 
-GitHub Pages 用のワークフロー（`.github/workflows/deploy.yml`）を同梱しています。
-リポジトリの Settings → Pages → Source を「GitHub Actions」に設定し、
-`main` ブランチへ push すると自動ビルド・デプロイされます。
+現在の公開先は **[https://retrocross.netlify.app/](https://retrocross.netlify.app/)**
+（Netlifyに `npm run build` の `dist/` を直接デプロイしたもの。GitHubとは連携していない
+単発デプロイのため、更新する場合は再度 `dist/` をNetlifyの管理画面からアップロードし直す
+必要がある）。恒久的な公開先は別途 itch.io 等へ移す予定。
+
+リポジトリには GitHub Pages 用のワークフロー（`.github/workflows/deploy.yml`）も同梱して
+おり、Settings → Pages → Source を「GitHub Actions」に設定して `main` ブランチへ push
+すれば自動ビルド・デプロイもできる（ただしこちらは現状プレイ用の告知はしていない）。
 
 ## 技術構成
 

@@ -493,48 +493,36 @@ const DRINK = [
 ];
 const DRINK_P = { r: '#e8342a', b: '#2f6fd8', B: '#16305c' };
 
-// 転がるレッドブルー缶（横倒しで回転しながら接近する障害物。プレイヤーサイズ）
-const CANROLL_0 = [
-  '..kkkkkkkkkk..',
-  '.kbbbbbbbbbbk.',
-  'krrrrrrrrrrrrk',
-  'kbbbbbbbbbbbbk',
-  'krrrrrrrrrrrrk',
-  'kbbbbbbbbbbbbk',
-  '.kkkkkkkkkkkk.',
-];
-const CANROLL_1 = [
-  '...kkkkkkkkkk.',
-  '..kbbbbbbbbbbk',
-  '.krrrrrrrrrrrk',
-  'kbbbbbbbbbbbbk',
-  'krrrrrrrrrrrk.',
-  'kbbbbbbbbbbk..',
-  '.kkkkkkkkkk...',
-];
-const CANROLL_2 = [
-  '..kkkkkkkkkk..',
-  '.kbbbbbbbbbbk.',
-  'krrrrrrrrrrrrk',
-  'kbbbbbbbbbbbbk',
-  'krrrrrrrrrrrrk',
-  'kbbbbbbbbbbbbk',
-  '.kkkkkkkkkkkk.',
-];
-const CANROLL_3 = [
-  'kkkkkkkkkk....',
-  'kbbbbbbbbbbk..',
-  'krrrrrrrrrrrk.',
-  '.kbbbbbbbbbbbk',
-  '.krrrrrrrrrrrk',
-  '..kbbbbbbbbbbk',
-  '...kkkkkkkkkk.',
-];
-const CANROLL_P = { r: '#e8342a', b: '#2f6fd8' };
-
-// 蹴れるレッドブルー缶（立って落ちている。蹴ると前方へ、着地でスタンプすると回復）
-const CANKICK = ['.kkkk.', 'kbbbbk', 'krrrrk', 'kbbbbk', 'krrrrk', 'kBBBBk', '.kkkk.'];
-const CANKICK_P = { r: '#e8342a', b: '#2f6fd8', B: '#16305c' };
+// 転がるレッドブルー巨大缶（横倒しになり、丸太転がしのようにグルグル回転しながら
+// 接近してくる障害物。円盤状のシルエットに赤×青の縞を計算で描き、位相ごとに
+// 縞の角度をずらすことで「缶が回転して迫ってくる」動きを表現する）
+function canRollFrame(phase: number): string[] {
+  const R = 6;
+  const rows: string[] = [];
+  for (let y = -R; y <= R; y++) {
+    let row = '';
+    for (let x = -R; x <= R; x++) {
+      const d = Math.sqrt(x * x + y * y);
+      if (d > R + 0.3) {
+        row += '.';
+        continue;
+      }
+      if (d > R - 1.3) {
+        row += 'k';
+        continue;
+      }
+      const band = Math.floor((x * 0.5 + y * 1.6 + phase * 2.6) / 2.6);
+      row += (((band % 2) + 2) % 2) === 0 ? 'r' : 'b';
+    }
+    rows.push(row);
+  }
+  // 金属っぽいツヤのハイライト（左上寄りに固定）
+  const hy = 2;
+  const hx = 3;
+  rows[hy] = rows[hy].slice(0, hx) + 'w' + rows[hy].slice(hx + 1);
+  return rows;
+}
+const CANROLL_P = { r: '#e8342a', b: '#2f6fd8', w: '#fff6d8' };
 
 const ENERGY = [
   '.kkkk.',
@@ -781,15 +769,24 @@ export interface SpriteBank {
   brick: Sprite[]; // 回転4方向
   kickboardGirl: Sprite[]; // 髪なびき2フレーム
   canRoll: Sprite[]; // 転がるレッドブルー缶(4回転フレーム)
-  canKick: Sprite; // 蹴れるレッドブルー缶
 }
 
 // 通行人: プレイヤーと同構造の簡略版（2フレーム）を色替え量産
-function makePed(shirt: string, shirtSh: string, skirt: boolean, hat: boolean): Sprite[] {
+// skirtColor/skirtColorShを省略するとシャツと同色のスカート（従来通り）
+function makePed(
+  shirt: string,
+  shirtSh: string,
+  skirt: boolean,
+  hat: boolean,
+  skirtColor?: string,
+  skirtColorSh?: string,
+): Sprite[] {
   const pal = {
     ...P,
     t: shirt,
     T: shirtSh,
+    y: skirtColor ?? shirt,
+    Y: skirtColorSh ?? shirtSh,
     r: hat ? '#e8d9b8' : '#4a3524',
     R: hat ? '#c4a874' : '#33251a',
   };
@@ -818,8 +815,8 @@ function makePed(shirt: string, shirtSh: string, skirt: boolean, hat: boolean): 
     '.ksttttttsk...',
     '.kskttttksk...',
     '.kk kttttkkk..',
-    skirt ? '..kttttttk...' : '...kntnnk.....',
-    skirt ? '..kttttttk...' : '...knnnnk.....',
+    skirt ? '..kyyyyyyk...' : '...kntnnk.....',
+    skirt ? '..kyyyyyyk...' : '...knnnnk.....',
     '...knnkNNk....',
     '...ksk.kSk....',
     '...kwk.kWk....',
@@ -831,8 +828,8 @@ function makePed(shirt: string, shirtSh: string, skirt: boolean, hat: boolean): 
     '.ksttttttsk...',
     '.kskttttksk...',
     '.kk.kttttkkk..',
-    skirt ? '..kttttttk...' : '...kntnnk.....',
-    skirt ? '..kttttttk...' : '...knnnnk.....',
+    skirt ? '..kyyyyyyk...' : '...kntnnk.....',
+    skirt ? '..kyyyyyyk...' : '...knnnnk.....',
     '...kNnknnk....',
     '...kSk.ksk....',
     '...kWk.kwk....',
@@ -882,8 +879,8 @@ export function buildSprites(): SpriteBank {
     makePed('#68b868', '#458a48', false, true), // 緑シャツ帽子
     makePed('#e8b83c', '#b8882a', true, false), // 買い物客
   ];
-  // レッドブルー救助のお姉さん（熱中症で倒れると駆けつけて回復させてくれる）
-  const rescueLady = makePed('#e8342a', '#a81f1a', false, true);
+  // レッドブルー救助のお姉さん（熱中症で倒れると駆けつけて回復させてくれる。黄色いスカート）
+  const rescueLady = makePed('#e8342a', '#a81f1a', true, true, '#ffd94d', '#c9a02a');
 
   return {
     player: { run, jump, stumble, collapse, win, idle, restKneel },
@@ -901,8 +898,7 @@ export function buildSprites(): SpriteBank {
     sign: mk(SIGN, SIGN_P),
     brick: [mk(BRICK_0, BRICK_P), mk(BRICK_1, BRICK_P), mk(BRICK_2, BRICK_P), mk(BRICK_3, BRICK_P)],
     kickboardGirl: [mk(KICKGIRL_0, KICKGIRL_P), mk(KICKGIRL_1, KICKGIRL_P)],
-    canRoll: [mk(CANROLL_0, CANROLL_P), mk(CANROLL_1, CANROLL_P), mk(CANROLL_2, CANROLL_P), mk(CANROLL_3, CANROLL_P)],
-    canKick: mk(CANKICK, CANKICK_P),
+    canRoll: [0, 1, 2, 3].map((i) => mk(canRollFrame(i), CANROLL_P)),
     peds,
     rescueLady,
   };

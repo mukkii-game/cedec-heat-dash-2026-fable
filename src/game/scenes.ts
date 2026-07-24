@@ -75,7 +75,7 @@ export class TitleScene implements Scene {
     if (audio.ctx && !music.isPlaying) music.play('title');
     music.update();
 
-    const rows = [0, 1].map((i) => ({ y: 100 + i * 24 - 4, h: 22 }));
+    const rows = [0, 1].map((i) => ({ y: 112 + i * 24 - 4, h: 22 }));
     const tapped = this.menu.tap(this.ctx, rows);
     if (tapped !== null) {
       this.menu.sel = tapped;
@@ -127,7 +127,7 @@ export class TitleScene implements Scene {
     // ロゴ（背後に太陽、巨大なアーケード風ロゴタイプ）
     // ペタ塗りの水色〜青＋白フチ＋黒い継ぎ目で立体感を出す3層構成
     const LOGO_SCALE = 6;
-    const ly = 24 + Math.sin(this.t * 1.5) * 2;
+    const ly = 18 + Math.sin(this.t * 1.5) * 2;
     pixCircle(g, VW / 2, Math.round(ly + 21), 76, 'rgba(255,217,77,0.22)');
     pixCircle(g, VW / 2, Math.round(ly + 21), 62, 'rgba(255,180,60,0.28)');
     // 白い外側の縁取り
@@ -151,11 +151,19 @@ export class TitleScene implements Scene {
     // 本体（水色と青の間のペタ塗り）
     bitmapText(g, 'RETRO-CROSS', VW / 2, ly, { color: '#2f9fd8', align: 'center', scale: LOGO_SCALE });
 
+    // 副題（ロゴ本体の3倍サイズ相当まで拡大して存在感を出す）
+    text(g, this.ctx.i18n.t('title.sub'), VW / 2, 62, {
+      size: 32,
+      color: '#c8e8f5',
+      align: 'center',
+      bold: true,
+    });
+
     // 言語選択（選ぶとそのままスタート）
     const labels = ['日本語でスタート', 'Start in English'];
     for (let i = 0; i < labels.length; i++) {
       const sel = this.menu.sel === i;
-      text(g, (sel ? '▶ ' : '  ') + labels[i], VW / 2, 100 + i * 24, {
+      text(g, (sel ? '▶ ' : '  ') + labels[i], VW / 2, 112 + i * 24, {
         size: 12,
         color: sel ? '#ffd94d' : '#f5f1e8',
         align: 'center',
@@ -164,11 +172,11 @@ export class TitleScene implements Scene {
     }
 
     // アーケード風コピーライト表記
-    text(g, '© 2026 MUKKII', VW / 2, 160, { size: 9, color: '#f5f1e8', align: 'center' });
-    text(g, 'ALL RIGHT RESERVED', VW / 2, 173, { size: 9, color: '#f5f1e8', align: 'center' });
+    text(g, '© 2026 MUKKII', VW / 2, 172, { size: 9, color: '#f5f1e8', align: 'center' });
+    text(g, 'ALL RIGHT RESERVED', VW / 2, 185, { size: 9, color: '#f5f1e8', align: 'center' });
 
     // MUKKIIロゴ（丸みのある太字の赤。NAMCO風パロディ）
-    text(g, 'MUKKII', VW / 2, 190, {
+    text(g, 'MUKKII', VW / 2, 202, {
       size: 22,
       color: '#e0201e',
       align: 'center',
@@ -385,7 +393,7 @@ export class ResultScene implements Scene {
 const CREDITS: [string, string][] = [
   ['CEDEC HEAT DASH 2026', 'CEDEC HEAT DASH 2026'],
   ['', ''],
-  ['ランナー：ミナト', 'RUNNER: MINATO'],
+  ['ランナー：あなた', 'RUNNER: YOU'],
   ['日射担当：太陽（本人）', 'SOLAR LASER: THE SUN (itself)'],
   ['冷房協力：スズシヤ全店', 'COOLING: SUZUSHIYA STORES'],
   ['道路監修：徒歩5分という概念', 'ROUTE DESIGN: THE CONCEPT OF "5-MIN WALK"'],
@@ -398,7 +406,7 @@ const CREDITS: [string, string][] = [
   ['水分 / 塩分 / 日陰のみなさん', 'WATER / SALT / ALL SHADES'],
   ['そして走った あなた', 'AND YOU, WHO RAN'],
   ['', ''],
-  ['ミナトは、めざせCEDECを走り抜いた。', 'Minato ran the whole way to CEDEC.'],
+  ['あなたは、めざせCEDECを走り抜いた。', 'You ran the whole way to CEDEC.'],
 ];
 
 export class EdScene implements Scene {
@@ -428,7 +436,7 @@ export class EdScene implements Scene {
         }
         break;
       case 'credits': {
-        const dur = CREDITS.length * 1.1 + 2;
+        const dur = CREDITS.length * 0.55 + 1;
         if (this.t > dur || (this.t > 1.5 && tapped)) {
           this.phase = 'fin';
           this.t = 0;
@@ -490,7 +498,7 @@ export class EdScene implements Scene {
     }
 
     if (this.phase === 'credits') {
-      const scroll = this.t * 26;
+      const scroll = this.t * 52;
       for (let i = 0; i < CREDITS.length; i++) {
         const y = VH + 20 + i * 26 - scroll;
         if (y < -20 || y > VH + 20) continue;

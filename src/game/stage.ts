@@ -34,11 +34,6 @@ const MAX_SHADE = 8.4;
 const MAX_GLARE = 10.8;
 const DASH_MULT = 1.4; // ダッシュ時の上限倍率
 const BRAKE_V = 2.6;
-/** チェックポイント(WAVE切替)通過時、ヒートをこの上限までクールダウンさせる。
- * 各WAVEは元々「熱0から始まる前提」でバランスされているため、通し1本化で
- * 熱が積み上がったまま次区間に入ると理不尽な連鎖死が起きる。新エリアに入る
- * 「涼しい切り替わり」の演出も兼ねて、ここでしっかり逃がす。 */
-const CHECKPOINT_HEAT_CAP = 0;
 const SAND_MULT = 0.6;
 // ヒート（0=快適 100=熱中症）。日向で上がり日陰で下がる
 const HEAT_SUN = 2.2;
@@ -57,8 +52,7 @@ const GULL_TRIGGER_DIST = 18; // m
 const GULL_WARN_T = 1.0; // s
 const GULL_DIVE_T = 0.6; // s
 const GULL_HIT_FROM = 0.15; // dive開始からの被弾有効化(s)
-/** 表示用スプライト倍率（画面上の存在感。当たり判定はメートル系で不変）。
- * 環境オブジェクト（低障害物・台車・回転草・砂丘・レンガ等）はこのまま。 */
+/** 表示用スプライト倍率（画面上の存在感。当たり判定はメートル系で不変）。 */
 const SPR = 1.45;
 /** 主人公・カモメ・キックボードなど「動くキャラ」は2倍表示 */
 const CHAR_SPR = SPR * 2;
@@ -66,15 +60,12 @@ const CHAR_SPR = SPR * 2;
 const PED_SPR = SPR * 1.16 * 2;
 /** ドリンク（レッドブルー）は2倍表示 */
 const DRINK_SPR = SPR * 2;
+/** 低障害物・台車・回転草・砂丘・レンガ等の「地面のオブジェクト」。
+ * キャラを2倍化した後、これらだけ小さいままだと目立たず釣り合わないため拡大。
+ * ジャンプで跨げる「低さ」の読みやすさは保ちつつ、キャラほどは大きくしない。 */
+const OBJ_SPR = SPR * 1.7;
 /** 転がるレッドブルー巨大缶。プレイヤーとほぼ同サイズ */
 const CANROLL_SPR = CHAR_SPR;
-/** 蹴れるレッドブルー缶。プレイヤーの約半分サイズ */
-const CANKICK_SPR = CHAR_SPR * 0.5;
-/** 蹴れる缶をスタンプ(踏みつぶし)した時のヒート回復量。カウント(1〜3)ごと。3で全回復 */
-const CANKICK_HEAL = [20, 45, 100];
-/** キック1回あたりに前方へ飛ぶ距離のレンジ(m) */
-const CANKICK_LAUNCH_MIN = 9;
-const CANKICK_LAUNCH_RANGE = 7;
 
 // ---- 熱中症からの救助（ゲームオーバー廃止。ヒート100%で即死ではなく、
 // レッドブルー救助隊が駆けつけてヒートを全回復させる代わりにタイムを消費する） ----
@@ -107,7 +98,6 @@ interface Ob extends ObDef {
   gullState?: 'idle' | 'warn' | 'dive' | 'gone';
   gullT?: number;
   chatted?: boolean; // chat: trueな集団の代表ped。雑談吹き出しを出し終えたか
-  kickCount?: number; // canKick: 何回蹴られたか(0〜3)
 }
 
 interface LaserRt {
@@ -482,6 +472,7 @@ export class Stage implements Scene {
         this.heat = Math.max(0, this.heat - STORE_COOL);
         this.v = V_MIN;
         this.invulnT = 0.5;
+        this.recoverFlashT = 0.6;
       }
       return;
     }
@@ -509,6 +500,7 @@ export class Stage implements Scene {
     // 環境と速度（ダッシュ=速いが熱い / ブレーキ=遅いが涼しく安全）
     const env = this.env(this.px, this.pz);
     this.inShade = env.shaded;
+    if (this.recoverFlashT > 0) this.recoverFlashT = Math.max(0, this.recoverFlashT - dt);
     const wasDashing = this.dashing;
     const wasBraking = this.braking;
     this.dashing = moveX > 0.35 && this.stumbleT <= 0;
@@ -692,13 +684,15 @@ export class Stage implements Scene {
   private shadeFizzT = 0;
   /** 日陰にいるか（drawPlayerの青いミストオーバーレイ用） */
   private inShade = false;
+  /** ドリンク/エナドリ/コンビニ等で回復した直後、キャラの周りに出す白い光の残り時間 */
+  private recoverFlashT = 0;
 
-  /** WAVE切替: 曲・背景テーマを差し替え、ヒートを少し逃がしてバナーを出す（プレイは止めない） */
+  /** WAVE切替: 曲・背景テーマを差し替えてバナーを出す（プレイは止めない。ヒートは
+   * リセットせずそのまま次WAVEへ引き継ぐ） */
   private enterWave(wv: Wave): void {
     const { audio, i18n, music } = this.ctx;
     this.waveIdx = wv.n;
     music.play(wv.song);
-    this.heat = Math.min(this.heat, CHECKPOINT_HEAT_CAP);
     this.waveBannerT = 2.2;
     this.waveBannerLabel = wv.label;
     this.flashT = 0.15;
@@ -833,7 +827,7 @@ export class Stage implements Scene {
       }
     }
     for (const o of this.obs) {
-      if (o.taken || o.done || o.type === 'drink' || o.type === 'energy' || o.type === 'canKick') continue;
+      if (o.taken || o.done || o.type === 'drink' || o.type === 'energy') continue;
       if (o.type === 'gull' && o.gullState !== 'warn' && o.gullState !== 'dive') continue;
       const dx = o.curX - this.px;
       if (dx < 0.5 || dx > 10) continue;
@@ -1012,6 +1006,7 @@ export class Stage implements Scene {
           if (Math.abs(dx) < 0.9 && dz < 0.14) {
             o.taken = true;
             this.heat = Math.max(0, this.heat - 16);
+            this.recoverFlashT = 0.6;
             this.ctx.audio.sfx('drink');
             this.quip(this.ctx.i18n.t('q.drink'));
           }
@@ -1021,6 +1016,7 @@ export class Stage implements Scene {
             o.taken = true;
             this.heat = Math.max(0, this.heat - 12);
             this.v = Math.min(15, this.v + 2.5);
+            this.recoverFlashT = 0.6;
             this.ctx.audio.sfx('energy');
             this.quip(this.ctx.i18n.t('q.energy'));
           }
@@ -1076,40 +1072,6 @@ export class Stage implements Scene {
           break;
         case 'canRoll':
           if (!jumpClear && Math.abs(dx) < 1.3 && dz < 0.15) this.damage(12);
-          break;
-        case 'canKick':
-          if (Math.abs(dx) < 1.0 && dz < 0.16) {
-            if (this.airT >= 0) {
-              // スタンプ: 踏みつぶして冷却液を浴びる。カウントが高いほどよく冷える
-              const count = Math.min(3, Math.max(1, o.kickCount ?? 1));
-              o.taken = true;
-              if (count >= 3) this.heat = 0;
-              else this.heat = Math.max(0, this.heat - CANKICK_HEAL[count - 1]);
-              this.ctx.audio.sfx('drink');
-              this.quip(this.ctx.i18n.t(count >= 3 ? 'q.canFull' : 'q.canStomp'));
-              for (let i = 0; i < 12; i++) {
-                this.spawnP(
-                  PSX + (Math.random() - 0.5) * 20,
-                  zToY(this.pz) - 10,
-                  (Math.random() - 0.5) * 50,
-                  -40 - Math.random() * 30,
-                  0.5,
-                  Math.random() < 0.5 ? '#2f6fd8' : '#e8342a',
-                  2,
-                  60,
-                );
-              }
-            } else {
-              // キック: カウントを進めて前方へ蹴り飛ばす。何度でも蹴れる
-              o.kickCount = Math.min(3, (o.kickCount ?? 0) + 1);
-              const launch = CANKICK_LAUNCH_MIN + hash(o.x * 3.1 + o.kickCount * 7.7) * CANKICK_LAUNCH_RANGE;
-              o.curX = this.px + launch;
-              o.baseZ = Math.min(0.9, Math.max(0.1, o.curZ + (hash(o.x * 5.3 + o.kickCount) - 0.5) * 0.3));
-              o.curZ = o.baseZ;
-              this.ctx.audio.sfx('jump');
-              this.quip(this.ctx.i18n.t('q.canKick'));
-            }
-          }
           break;
       }
     }
@@ -1317,7 +1279,9 @@ export class Stage implements Scene {
       g.lineTo(sxFar + 5, topFar + 9);
       g.closePath();
       g.fill();
-      const midX = (sxFar + sxNear) / 2;
+      // 「パシフィコ横浜」看板は artDome 内でsxFar中心に描かれるため、GOAL文字が
+      // 看板テキストの真ん中に重なって読みにくくならないよう、看板より右（横浜の右側）へ寄せる
+      const midX = sxFar + 92 * domeScale;
       const midY = (topFar + topNear) / 2 + 2;
       bitmapText(g, 'GOAL', midX, midY, { color: '#f5f1e8', align: 'center', shadow: '#221833' });
     } else {
@@ -1484,13 +1448,13 @@ export class Stage implements Scene {
       const sc = scaleAt(o.curZ);
       switch (o.type) {
         case 'cone':
-          items.push({ z: o.curZ, fn: () => blit(g, S.cone, sx, sy, sc * SPR) });
+          items.push({ z: o.curZ, fn: () => blit(g, S.cone, sx, sy, sc * OBJ_SPR) });
           break;
         case 'planter':
-          items.push({ z: o.curZ, fn: () => blit(g, S.planter, sx, sy, sc * SPR) });
+          items.push({ z: o.curZ, fn: () => blit(g, S.planter, sx, sy, sc * OBJ_SPR) });
           break;
         case 'coolbox':
-          items.push({ z: o.curZ, fn: () => blit(g, S.coolbox, sx, sy, sc * SPR) });
+          items.push({ z: o.curZ, fn: () => blit(g, S.coolbox, sx, sy, sc * OBJ_SPR) });
           break;
         case 'drink': {
           const bob = Math.sin(this.time * 4 + o.phase) * 2;
@@ -1512,8 +1476,8 @@ export class Stage implements Scene {
           items.push({
             z: o.curZ,
             fn: () => {
-              this.drawShadow(g, sx, sy, 8 * sc * SPR);
-              blit(g, S.energy, sx, sy - 6 + bob, sc * SPR);
+              this.drawShadow(g, sx, sy, 8 * sc * OBJ_SPR);
+              blit(g, S.energy, sx, sy - 6 + bob, sc * OBJ_SPR);
             },
           });
           break;
@@ -1535,8 +1499,8 @@ export class Stage implements Scene {
           items.push({
             z: o.curZ,
             fn: () => {
-              this.drawShadow(g, sx, sy, 11 * sc * SPR);
-              blit(g, S.cart, sx, sy, sc * SPR);
+              this.drawShadow(g, sx, sy, 11 * sc * OBJ_SPR);
+              blit(g, S.cart, sx, sy, sc * OBJ_SPR);
             },
           });
           break;
@@ -1562,8 +1526,8 @@ export class Stage implements Scene {
           items.push({
             z: o.curZ,
             fn: () => {
-              this.drawShadow(g, sx, sy, 8 * sc * SPR);
-              blit(g, f, sx, sy - bounce, sc * SPR);
+              this.drawShadow(g, sx, sy, 8 * sc * OBJ_SPR);
+              blit(g, f, sx, sy - bounce, sc * OBJ_SPR);
             },
           });
           break;
@@ -1571,7 +1535,7 @@ export class Stage implements Scene {
         case 'dune': {
           items.push({
             z: o.curZ,
-            fn: () => blit(g, S.dune, sx, sy + 1, sc * SPR),
+            fn: () => blit(g, S.dune, sx, sy + 1, sc * OBJ_SPR),
           });
           break;
         }
@@ -1581,8 +1545,8 @@ export class Stage implements Scene {
           items.push({
             z: o.curZ,
             fn: () => {
-              this.drawShadow(g, sx, sy, 9 * sc * SPR, 'rgba(34,24,51,0.25)');
-              blit(g, f, sx, sy - 8 * sc * SPR - bob, sc * SPR);
+              this.drawShadow(g, sx, sy, 9 * sc * OBJ_SPR, 'rgba(34,24,51,0.25)');
+              blit(g, f, sx, sy - 8 * sc * OBJ_SPR - bob, sc * OBJ_SPR);
             },
           });
           break;
@@ -1599,29 +1563,13 @@ export class Stage implements Scene {
           break;
         }
         case 'canRoll': {
-          const f = S.canRoll[Math.floor(this.time * 6 + o.phase * 3) % 4];
+          // マルタ転がしのように、円盤状の缶がグルグル回転しながら接近する
+          const f = S.canRoll[Math.floor(this.time * 9 + o.phase * 3) % 4];
           items.push({
             z: o.curZ,
             fn: () => {
               this.drawShadow(g, sx, sy, 14 * sc * CANROLL_SPR, 'rgba(34,24,51,0.3)');
               blit(g, f, sx, sy, sc * CANROLL_SPR);
-            },
-          });
-          break;
-        }
-        case 'canKick': {
-          const count = o.kickCount ?? 0;
-          const bob = Math.sin(this.time * 3 + o.phase) * 1.5;
-          items.push({
-            z: o.curZ,
-            fn: () => {
-              this.drawShadow(g, sx, sy, 8 * sc * CANKICK_SPR);
-              blit(g, S.canKick, sx, sy + bob, sc * CANKICK_SPR);
-              bitmapText(g, String(Math.max(1, count)), sx, sy - 22 * sc * CANKICK_SPR + bob, {
-                color: '#ffd94d',
-                align: 'center',
-                shadow: '#221833',
-              });
             },
           });
           break;
@@ -1722,6 +1670,57 @@ export class Stage implements Scene {
     // ヒートゲージ演出: 足元から頭へ赤みがせり上がる（0=白いまま/100=全身真っ赤）
     // 加減速の傾き: 足元(接地点)を軸に回転させる
     const anchorY = sy;
+    const bodyY = sy - jy - 16 * sc * CHAR_SPR;
+
+    // 危険域(ヒート85%以上): キャラをはみ出す黄色いオーラ＋★スパークルで「ヤバさ」を強調
+    if (this.heat >= 85 && (this.state === 'play' || this.state === 'rescue')) {
+      const baseR = 26 * sc * CHAR_SPR;
+      const r = baseR + Math.sin(this.time * 8) * baseR * 0.15;
+      const grad = g.createRadialGradient(PSX, bodyY, 0, PSX, bodyY, r);
+      grad.addColorStop(0, 'rgba(255,217,77,0.55)');
+      grad.addColorStop(0.55, 'rgba(255,180,60,0.3)');
+      grad.addColorStop(1, 'rgba(255,180,60,0)');
+      g.fillStyle = grad;
+      g.beginPath();
+      g.arc(PSX, bodyY, r, 0, Math.PI * 2);
+      g.fill();
+      for (let i = 0; i < 6; i++) {
+        const ang = this.time * 3.5 + (i / 6) * Math.PI * 2;
+        const rr = baseR * (0.85 + Math.sin(this.time * 9 + i * 1.7) * 0.3);
+        const gx = PSX + Math.cos(ang) * rr;
+        const gy = bodyY + Math.sin(ang) * rr * 0.7;
+        g.globalAlpha = 0.5 + Math.max(0, Math.sin(this.time * 13 + i * 2.1)) * 0.5;
+        bitmapText(g, '★', gx, gy, { color: '#ffd94d', align: 'center', scale: 1.4 });
+        g.globalAlpha = 1;
+      }
+    }
+    // 回復中(日陰滞在／ドリンク・エナドリ・コンビニ直後): キャラをはみ出す白い光のオーラ
+    const flash = Math.min(1, this.recoverFlashT / 0.6);
+    const shadeGlow = this.inShade && this.state === 'play' ? 0.4 : 0;
+    const recoverA = Math.max(shadeGlow, flash * 0.95);
+    if (recoverA > 0) {
+      const baseR = (20 + flash * 12) * sc * CHAR_SPR;
+      const r = baseR + Math.sin(this.time * 6) * baseR * 0.1;
+      const grad = g.createRadialGradient(PSX, bodyY, 0, PSX, bodyY, r);
+      grad.addColorStop(0, `rgba(255,255,255,${(0.6 * recoverA).toFixed(3)})`);
+      grad.addColorStop(0.55, `rgba(210,240,255,${(0.32 * recoverA).toFixed(3)})`);
+      grad.addColorStop(1, 'rgba(210,240,255,0)');
+      g.fillStyle = grad;
+      g.beginPath();
+      g.arc(PSX, bodyY, r, 0, Math.PI * 2);
+      g.fill();
+      const sparkleCount = flash > 0 ? 8 : 5;
+      for (let i = 0; i < sparkleCount; i++) {
+        const ang = this.time * 3 + (i / sparkleCount) * Math.PI * 2;
+        const rr = baseR * (0.8 + Math.sin(this.time * 8 + i * 1.6) * 0.3);
+        const gx = PSX + Math.cos(ang) * rr;
+        const gy = bodyY + Math.sin(ang) * rr * 0.7;
+        g.globalAlpha = recoverA * (0.5 + Math.max(0, Math.sin(this.time * 11 + i * 1.9)) * 0.5);
+        bitmapText(g, '★', gx, gy, { color: '#ffffff', align: 'center', scale: flash > 0 ? 1.6 : 1.2 });
+        g.globalAlpha = 1;
+      }
+    }
+
     g.save();
     g.translate(PSX, anchorY);
     g.rotate(this.tiltAngle);
@@ -1751,13 +1750,16 @@ export class Stage implements Scene {
       g.restore();
     }
 
-    // ヒートゲージを数値で頭上に表示（0%スタート、100%で熱中症）
+    // ヒートゲージを数値で頭上に表示（0%スタート、100%で熱中症）。通常の2倍サイズ。
+    // 危険域(85%以上)の派手な演出はキャラ全体を包む黄色いオーラ側（drawPlayer冒頭）が担う
     if (this.state === 'play' || this.state === 'rescue') {
       const heatColor = this.heat >= 85 ? '#ff5a3a' : this.heat >= 60 ? '#ffd94d' : '#f5f1e8';
-      bitmapText(g, `${Math.round(this.heat)}%`, PSX, sy - jy - 44 * sc * CHAR_SPR, {
+      const numY = sy - jy - 50 * sc * CHAR_SPR;
+      bitmapText(g, `${Math.round(this.heat)}%`, PSX, numY, {
         color: heatColor,
         align: 'center',
         shadow: '#221833',
+        scale: 2,
       });
     }
   }

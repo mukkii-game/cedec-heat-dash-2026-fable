@@ -28,8 +28,7 @@ export type ObType =
   | 'energy'
   | 'brick'
   | 'kickboard'
-  | 'canRoll'
-  | 'canKick';
+  | 'canRoll';
 
 export interface ObDef {
   type: ObType;
@@ -123,8 +122,6 @@ const WAVE1_SRC: CourseSection = {
     { type: 'ped', x: 20, z: 0.35, v: 0, variant: 2 },
     // S0: 初障害物（ジャンプでも迂回でも良い）
     { type: 'cone', x: 32, z: 0.75 },
-    // 蹴れるレッドブルー缶（お試し。蹴って遊んでも、踏んで回復してもいい）
-    { type: 'canKick', x: 48, z: 0.5 },
     // S1: 日陰側の観光客
     { type: 'ped', x: 68, z: 0.18, v: -0.6, variant: 0 },
     { type: 'ped', x: 86, z: 0.28, v: 0.5, variant: 1 },
@@ -149,10 +146,19 @@ const WAVE1_SRC: CourseSection = {
     { type: 'ped', x: 197, z: 0.8, v: 0.3, variant: 3 },
     { type: 'ped', x: 210, z: 0.6, v: -0.6, variant: 1, zAmp: 0.16 },
     { type: 'kickboard', x: 222, z: 0.5, zAmp: 0.32 },
-    // 蹴れるレッドブルー缶（ラストスパート前のご褒美）
-    { type: 'canKick', x: 244, z: 0.5 },
     // S4: 分岐 — 日向(奥)は障害物2つ、日陰(手前)は遅いがクリーン
     { type: 'cardman', x: 236, z: 0.48 },
+    // 後半のさらに密度アップ: 横並びで邪魔してくる3人組ブロッカーを3組連続で。
+    // ゆっくり左右に揺れながら歩いてくる（zAmp）＋前進速度も遅め（v）
+    { type: 'ped', x: 240, z: 0.42, v: -0.15, variant: 0, zAmp: 0.22, chat: true },
+    { type: 'ped', x: 241, z: 0.54, v: -0.15, variant: 3, zAmp: 0.22 },
+    { type: 'ped', x: 242, z: 0.66, v: -0.15, variant: 1, zAmp: 0.22 },
+    { type: 'ped', x: 247, z: 0.38, v: -0.15, variant: 2, zAmp: 0.2, chat: true },
+    { type: 'ped', x: 248, z: 0.5, v: -0.15, variant: 0, zAmp: 0.2 },
+    { type: 'ped', x: 249, z: 0.62, v: -0.15, variant: 3, zAmp: 0.2 },
+    { type: 'ped', x: 254, z: 0.55, v: -0.15, variant: 1, zAmp: 0.2, chat: true },
+    { type: 'ped', x: 255, z: 0.67, v: -0.15, variant: 2, zAmp: 0.2 },
+    { type: 'ped', x: 256, z: 0.79, v: -0.15, variant: 0, zAmp: 0.2 },
     { type: 'planter', x: 252, z: 0.2 },
     { type: 'cone', x: 264, z: 0.32 },
     { type: 'drink', x: 258, z: 0.08 },
@@ -229,16 +235,15 @@ const WAVE2_SRC: CourseSection = {
     { type: 'drink', x: 100, z: 0.08 },
     // 転がるレッドブルー巨大缶
     { type: 'canRoll', x: 108, z: 0.5, v: 2.8 },
-    // 買い物帰りの3人組（横並びで塞ぐ集団。ぎゅっと密集していて一気には抜けられない）
-    { type: 'ped', x: 140, z: 0.34, v: -0.3, variant: 1, chat: true },
-    { type: 'ped', x: 141, z: 0.46, v: -0.3, variant: 3 },
-    { type: 'ped', x: 142, z: 0.58, v: -0.3, variant: 0 },
+    // 買い物帰りの3人組（横並びで塞ぐ集団。ぎゅっと密集していて一気には抜けられない。
+    // ゆっくり左右に揺れながら歩いてくる）
+    { type: 'ped', x: 140, z: 0.34, v: -0.15, variant: 1, zAmp: 0.22, chat: true },
+    { type: 'ped', x: 141, z: 0.46, v: -0.15, variant: 3, zAmp: 0.22 },
+    { type: 'ped', x: 142, z: 0.58, v: -0.15, variant: 0, zAmp: 0.22 },
     // すぐ後ろにもう一組続き、この一帯だけ「やたらおおい」密度にする
     { type: 'ped', x: 144, z: 0.3, v: -0.35, variant: 2 },
     { type: 'ped', x: 145, z: 0.44, v: -0.35, variant: 0 },
-    // 蹴れるレッドブルー缶
-    { type: 'canKick', x: 155, z: 0.5 },
-    // S2: 照り返し直線。中央が速いが熱い。缶は照り返しの中
+    // S2: 照り返し直線。中央が速いが熱い
     { type: 'ped', x: 152, z: 0.12, v: -0.5, variant: 1 },
     { type: 'planter', x: 164, z: 0.85 },
     // 単発でぽつんと立って光る床を眺めている人（動かない）
@@ -259,11 +264,18 @@ const WAVE2_SRC: CourseSection = {
     // S4: レーザー連続（影の島か速度調整で抜ける。新ギミックは詰め込まない）
     { type: 'ped', x: 316, z: 0.7, v: 0.3, variant: 2 },
     { type: 'tumbleweed', x: 348, z: 0.5 },
-    // S5: レーザー地帯を抜けた後の開けた直線でもうひと押し
+    // S5: レーザー地帯を抜けた後の開けた直線でもうひと押し。
+    // 後半3分の1、3人組ブロッカーを3組連続で立て続けに配置（ゆっくり左右に歩く）
+    { type: 'ped', x: 354, z: 0.15, v: -0.15, variant: 0, zAmp: 0.2, chat: true },
+    { type: 'ped', x: 355, z: 0.27, v: -0.15, variant: 3, zAmp: 0.2 },
+    { type: 'ped', x: 356, z: 0.39, v: -0.15, variant: 1, zAmp: 0.2 },
+    { type: 'ped', x: 360, z: 0.36, v: -0.15, variant: 2, zAmp: 0.2, chat: true },
+    { type: 'ped', x: 361, z: 0.48, v: -0.15, variant: 0, zAmp: 0.2 },
+    { type: 'ped', x: 362, z: 0.6, v: -0.15, variant: 3, zAmp: 0.2 },
     // もう一組、密集した3人組（コンビニ帰りの井戸端会議）
-    { type: 'ped', x: 366, z: 0.32, v: -0.3, variant: 2, chat: true },
-    { type: 'ped', x: 367, z: 0.44, v: -0.3, variant: 0 },
-    { type: 'ped', x: 368, z: 0.56, v: -0.3, variant: 3 },
+    { type: 'ped', x: 366, z: 0.32, v: -0.15, variant: 2, zAmp: 0.2, chat: true },
+    { type: 'ped', x: 367, z: 0.44, v: -0.15, variant: 0, zAmp: 0.2 },
+    { type: 'ped', x: 368, z: 0.56, v: -0.15, variant: 3, zAmp: 0.2 },
     { type: 'cone', x: 372, z: 0.45 },
     { type: 'coolbox', x: 376, z: 0.72 },
     { type: 'brick', x: 380, z: 0.35, v: 2.8 },
@@ -350,12 +362,11 @@ const WAVE3_SRC: CourseSection = {
     { type: 'kickboard', x: 240, z: 0.28, zAmp: 0.2, v: 3.8 },
     { type: 'kickboard', x: 246, z: 0.72, zAmp: 0.2, v: 4.0 },
     { type: 'suitcase', x: 258, z: 0.15, v: -0.3, variant: 1 },
-    // 蹴れるレッドブルー缶（オアシス近く）
-    { type: 'canKick', x: 263, z: 0.5 },
-    // 砂漠を渡る旅行者の集団（3人、影を求めて肩を寄せ合い固まって歩く）
-    { type: 'ped', x: 270, z: 0.36, v: -0.25, variant: 1, chat: true },
-    { type: 'ped', x: 271, z: 0.48, v: -0.25, variant: 0 },
-    { type: 'ped', x: 272, z: 0.6, v: -0.25, variant: 3 },
+    // 砂漠を渡る旅行者の集団（3人、影を求めて肩を寄せ合い固まって歩く。
+    // ゆっくり左右に揺れながら歩いてくる）
+    { type: 'ped', x: 270, z: 0.36, v: -0.15, variant: 1, zAmp: 0.2, chat: true },
+    { type: 'ped', x: 271, z: 0.48, v: -0.15, variant: 0, zAmp: 0.2 },
+    { type: 'ped', x: 272, z: 0.6, v: -0.15, variant: 3, zAmp: 0.2 },
     { type: 'ped', x: 282, z: 0.35, v: 0.4, variant: 2, zAmp: 0.2 },
     { type: 'dune', x: 296, z: 0.2 },
     { type: 'gull', x: 316, z: 0.7 },
@@ -366,10 +377,17 @@ const WAVE3_SRC: CourseSection = {
     { type: 'dune', x: 372, z: 0.7 },
     { type: 'brick', x: 380, z: 0.4, v: 3.4 },
     { type: 'tumbleweed', x: 388, z: 0.35 },
+    // 後半3分の1、3人組ブロッカーを3組連続で立て続けに配置（ゆっくり左右に歩く）
+    { type: 'ped', x: 386, z: 0.15, v: -0.15, variant: 2, zAmp: 0.2, chat: true },
+    { type: 'ped', x: 387, z: 0.27, v: -0.15, variant: 0, zAmp: 0.2 },
+    { type: 'ped', x: 388, z: 0.39, v: -0.15, variant: 3, zAmp: 0.2 },
+    { type: 'ped', x: 392, z: 0.6, v: -0.15, variant: 1, zAmp: 0.2, chat: true },
+    { type: 'ped', x: 393, z: 0.72, v: -0.15, variant: 3, zAmp: 0.2 },
+    { type: 'ped', x: 394, z: 0.84, v: -0.15, variant: 0, zAmp: 0.2 },
     // もう一組、密集3人組
-    { type: 'ped', x: 398, z: 0.3, v: -0.2, variant: 0, chat: true },
-    { type: 'ped', x: 399, z: 0.42, v: -0.2, variant: 2 },
-    { type: 'ped', x: 400, z: 0.54, v: -0.2, variant: 1 },
+    { type: 'ped', x: 398, z: 0.3, v: -0.15, variant: 0, zAmp: 0.2, chat: true },
+    { type: 'ped', x: 399, z: 0.42, v: -0.15, variant: 2, zAmp: 0.2 },
+    { type: 'ped', x: 400, z: 0.54, v: -0.15, variant: 1, zAmp: 0.2 },
     { type: 'dune', x: 405, z: 0.75 },
     // ここから先(408-434)はスイープ日射レーザーの通り道。新ギミックは詰め込まない
     { type: 'cardman', x: 414, z: 0.55 },

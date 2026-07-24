@@ -4,6 +4,7 @@ export type Lang = 'ja' | 'en';
 
 const STR: Record<string, [string, string]> = {
   // タイトル
+  'title.sub': ['めざせCEDEC', 'HEAT DASH'],
   'title.press': ['タップ / SPACE でスタート', 'TAP / SPACE TO START'],
 
   // OP
@@ -57,9 +58,6 @@ const STR: Record<string, [string, string]> = {
   'q.checkpoint3': ['げ、砂漠になってる!?', 'Wait, it turned into a DESERT!?'],
   'q.goalFinal': ['着いた！ 会場すずしい！！', 'Made it! Sweet AC!!'],
   'q.shadeCool': ['シュワー…生き返る', 'Fizz... I feel alive again.'],
-  'q.canKick': ['ナイスキック！', 'Nice kick!'],
-  'q.canStomp': ['ひんやり…！', 'Ahh, so cool...!'],
-  'q.canFull': ['完全復活！！', 'Fully recovered!!'],
 
   // HUD
   'hud.day': ['DAY', 'DAY'],
